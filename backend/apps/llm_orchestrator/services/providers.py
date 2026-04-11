@@ -25,6 +25,29 @@ class BaseLLMProvider:
 class MockLLMProvider(BaseLLMProvider):
     provider_name = "mock"
 
+    @staticmethod
+    def _is_jurisprudence_document(document_type: str) -> bool:
+        return document_type in {
+            LegalDocument.DocumentType.THESIS,
+            LegalDocument.DocumentType.PRECEDENT,
+        }
+
+    @staticmethod
+    def _format_registry_suffix(document) -> str:
+        if document.digital_registry_number:
+            return f" (registro digital {document.digital_registry_number})"
+        return ""
+
+    def _build_jurisprudence_line(self, fragment, snippet: str, index: int) -> str:
+        document = fragment.legal_document
+        reference = document.title
+        if fragment.title and fragment.title != document.title:
+            reference = f"{reference} - {fragment.title}"
+        return (
+            f"- {reference}{self._format_registry_suffix(document)}: "
+            f"{snippet[:180]} [{index}]"
+        )
+
     def generate_answer(self, consultation, retrieval_hits, matter: str, topics: list[str]):
         citations = []
         normative_lines = []
@@ -34,7 +57,10 @@ class MockLLMProvider(BaseLLMProvider):
         for index, hit in enumerate(retrieval_hits, start=1):
             fragment = hit.fragment
             article_ref = f"art. {fragment.article_number}" if fragment.article_number else fragment.title
-            label = f"[{index}] {fragment.legal_document.short_name} - {article_ref}"
+            document = fragment.legal_document
+            label = f"[{index}] {document.short_name} - {article_ref}"
+            if self._is_jurisprudence_document(document.document_type):
+                label += self._format_registry_suffix(document)
             snippet = fragment.content[:280].strip()
             citations.append(
                 {
@@ -45,13 +71,13 @@ class MockLLMProvider(BaseLLMProvider):
                 }
             )
 
-            doc_type = fragment.legal_document.document_type
-            normative_line = (
-                f"- {fragment.legal_document.title}: {fragment.title} [{index}]"
-            )
+            doc_type = document.document_type
+            normative_line = f"- {document.title}: {fragment.title} [{index}]"
             article_line = f"- {fragment.title}: {snippet[:180]} [{index}]"
-            if doc_type in {LegalDocument.DocumentType.THESIS, LegalDocument.DocumentType.PRECEDENT}:
-                jurisprudence_lines.append(article_line)
+            if self._is_jurisprudence_document(doc_type):
+                jurisprudence_lines.append(
+                    self._build_jurisprudence_line(fragment, snippet, index)
+                )
             else:
                 normative_lines.append(normative_line)
                 article_lines.append(article_line)

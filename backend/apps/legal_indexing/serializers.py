@@ -12,6 +12,10 @@ class LegalTopicSerializer(serializers.ModelSerializer):
 class DocumentFragmentSerializer(serializers.ModelSerializer):
     document_title = serializers.CharField(source="legal_document.title", read_only=True)
     source_name = serializers.CharField(source="legal_document.source.name", read_only=True)
+    digital_registry_number = serializers.CharField(
+        source="legal_document.digital_registry_number",
+        read_only=True,
+    )
     topics = serializers.SerializerMethodField()
 
     class Meta:
@@ -20,6 +24,7 @@ class DocumentFragmentSerializer(serializers.ModelSerializer):
             "id",
             "document_title",
             "source_name",
+            "digital_registry_number",
             "fragment_type",
             "article_number",
             "section_path",

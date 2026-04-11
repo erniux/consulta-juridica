@@ -310,3 +310,45 @@ Se validaron estos puntos durante la construccion:
 - enriquecer parser juridico para articulos, fracciones, capitulos y tesis
 - crear monitoreo y observabilidad de consultas y jobs
 - agregar pruebas de API y UI mas amplias
+
+## CHECKLIST_POST_DEPLOY_RENDER
+
+Usa esta lista despues de cada deploy del backend en Render:
+
+1. confirmar que el deploy termino en estado `Live`
+2. abrir `https://<tu-backend>/api/health/` y validar respuesta `{"status":"ok","service":"consulta-juridica-backend"}`
+3. revisar variables en Render:
+- `DJANGO_SETTINGS_MODULE=config.settings.production`
+- `SECRET_KEY`
+- `DATABASE_URL`
+- `ALLOWED_HOSTS`
+- `CORS_ALLOWED_ORIGINS`
+- `CSRF_TRUSTED_ORIGINS`
+- `ASYNC_CONSULTATIONS=false` si no hay worker
+- `ASYNC_ADMIN_JOBS=false` si no hay worker
+4. abrir shell del servicio y correr:
+```bash
+cd /opt/render/project/src/backend
+python manage.py migrate --noinput
+```
+5. si la base juridica aun no existe o quieres refrescar demo data, correr:
+```bash
+cd /opt/render/project/src/backend
+python manage.py seed_demo_data
+```
+6. entrar al admin y validar que existan registros en:
+- `Source`
+- `LegalDocument`
+- `DocumentFragment`
+7. iniciar sesion desde el frontend
+8. crear una consulta de prueba
+9. confirmar que la consulta no quede en `queued`
+10. confirmar que la consulta termine en `completed` o, si falla, que muestre un error explicito y no una respuesta vacia
+11. abrir el detalle y validar:
+- respuesta estructurada
+- citas visibles
+- fragmentos recuperados
+- links a fuente oficial cuando existan
+12. revisar logs de Render si algo no cuadra:
+- logs del servicio web
+- logs del worker, si existe

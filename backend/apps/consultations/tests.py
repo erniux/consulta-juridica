@@ -42,6 +42,30 @@ class ConsultationWorkflowTests(TestCase):
             ),
         )
         parse_document_into_fragments(self.document)
+        self.jurisprudence_source = Source.objects.create(
+            name="Semanario Judicial de la Federacion",
+            slug="sjf",
+            type=Source.SourceType.JURISPRUDENCE,
+            authority="SCJN",
+            official_url="https://sjf2.scjn.gob.mx/busqueda-principal-tesis",
+            is_active=True,
+        )
+        self.jurisprudence_document = LegalDocument.objects.create(
+            source=self.jurisprudence_source,
+            title="Tesis sobre renuncia y riesgo de trabajo",
+            short_name="SJF",
+            document_type=LegalDocument.DocumentType.THESIS,
+            subject_area=LegalDocument.SubjectArea.OCCUPATIONAL_RISK,
+            version_label="tesis-demo-v1",
+            digital_registry_number="2026001",
+            official_url=self.jurisprudence_source.official_url,
+            raw_text=(
+                "Rubro. Renuncia firmada bajo presion despues de un accidente de trabajo.\n\n"
+                "Tesis. Cuando la persona trabajadora alega renuncia bajo presion y acredita "
+                "un riesgo de trabajo, el juzgador debe valorar integralmente el contexto."
+            ),
+        )
+        parse_document_into_fragments(self.jurisprudence_document)
 
     def test_process_consultation_generates_citations(self):
         consultation = Consultation.objects.create(
@@ -55,6 +79,18 @@ class ConsultationWorkflowTests(TestCase):
         self.assertEqual(consultation.status, Consultation.Status.COMPLETED)
         self.assertTrue(consultation.final_answer)
         self.assertGreater(consultation.citations.count(), 0)
+
+    def test_process_consultation_includes_digital_registry_number_for_jurisprudence(self):
+        consultation = Consultation.objects.create(
+            user=self.user,
+            prompt="Me hicieron firmar una renuncia despues de un accidente de trabajo.",
+        )
+
+        process_consultation(consultation)
+        consultation.refresh_from_db()
+
+        self.assertEqual(consultation.status, Consultation.Status.COMPLETED)
+        self.assertIn("registro digital 2026001", consultation.final_answer)
 
     @patch("apps.consultations.services.workflow.generate_consultation_answer")
     def test_process_consultation_marks_failed_when_unexpected_error_happens(self, mocked_generate):

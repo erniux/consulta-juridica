@@ -11,6 +11,11 @@ export function CitationList({ citations }) {
           <p className="muted">
             {citation.document_title} | {citation.source_name}
           </p>
+          {citation.digital_registry_number ? (
+            <p className="muted">
+              Registro digital: {citation.digital_registry_number}
+            </p>
+          ) : null}
           <p>{citation.snippet_used}</p>
         </article>
       ))}

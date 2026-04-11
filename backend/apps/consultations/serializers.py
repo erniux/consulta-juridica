@@ -25,6 +25,7 @@ class ConsultationRetrievalSerializer(serializers.ModelSerializer):
             "title": obj.fragment.title,
             "article_number": obj.fragment.article_number,
             "document_title": legal_document.title,
+            "digital_registry_number": legal_document.digital_registry_number,
             "source_name": source.name,
             "official_url": legal_document.official_url or source.official_url,
         }

@@ -96,6 +96,11 @@ export function ConsultationDetailPage() {
                   <p className="muted">
                     {retrieval.fragment.title} | score {retrieval.score}
                   </p>
+                  {retrieval.fragment.digital_registry_number ? (
+                    <p className="muted">
+                      Registro digital: {retrieval.fragment.digital_registry_number}
+                    </p>
+                  ) : null}
                   {retrieval.fragment.official_url ? (
                     <a
                       className="text-link retrieval-link"

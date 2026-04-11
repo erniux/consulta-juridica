@@ -1,4 +1,4 @@
-from django.db.models import Count
+from django.db.models import Count, Q
 from rest_framework import generics
 
 from .models import LegalDocument
@@ -21,7 +21,11 @@ class LegalDocumentListView(generics.ListAPIView):
         if subject_area:
             queryset = queryset.filter(subject_area=subject_area)
         if query:
-            queryset = queryset.filter(title__icontains=query)
+            queryset = queryset.filter(
+                Q(title__icontains=query)
+                | Q(short_name__icontains=query)
+                | Q(digital_registry_number__icontains=query)
+            )
         return queryset.order_by("title")
 
 

@@ -9,9 +9,10 @@ class LegalDocumentAdmin(admin.ModelAdmin):
         "title",
         "short_name",
         "document_type",
+        "digital_registry_number",
         "subject_area",
         "is_current",
         "updated_at",
     )
     list_filter = ("document_type", "subject_area", "is_current")
-    search_fields = ("title", "short_name", "version_label")
+    search_fields = ("title", "short_name", "version_label", "digital_registry_number")

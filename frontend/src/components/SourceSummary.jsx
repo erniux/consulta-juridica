@@ -22,6 +22,11 @@ export function SourceSummary({ sources, documents }) {
               <p className="muted">
                 {document.document_type} | {document.fragment_count || 0} fragmentos
               </p>
+              {document.digital_registry_number ? (
+                <p className="muted">
+                  Registro digital: {document.digital_registry_number}
+                </p>
+              ) : null}
             </div>
           ))}
         </div>
