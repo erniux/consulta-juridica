@@ -148,7 +148,7 @@ if database_url:
             "PORT": parsed.port or "5432",
             "OPTIONS": {
                 "sslmode": "require",
-            },[]
+            },
         }
     }
 else:
