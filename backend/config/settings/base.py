@@ -2,6 +2,7 @@ import importlib.util
 import os
 from datetime import timedelta
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -112,25 +113,63 @@ TEMPLATES = [
     },
 ]
 
-DATABASE_ENGINE = env("DB_ENGINE", "postgresql")
-if DATABASE_ENGINE == "sqlite":
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",
-        }
-    }
-else:
+#DATABASE_ENGINE = env("DB_ENGINE", "postgresql")
+#if DATABASE_ENGINE == "sqlite":
+#    DATABASES = {
+#        "default": {
+#            "ENGINE": "django.db.backends.sqlite3",
+#            "NAME": BASE_DIR / "db.sqlite3",
+#        }
+#    }
+#else:
+#    DATABASES = {
+#        "default": {
+#            "ENGINE": "django.db.backends.postgresql",
+#            "NAME": env("DB_NAME", "consulta_juridica"),
+#            "USER": env("DB_USER", "postgres"),
+#            "PASSWORD": env("DB_PASSWORD", "postgres"),
+#            "HOST": env("DB_HOST", "db"),
+#            "PORT": env("DB_PORT", "5432"),
+#        }
+#    }
+
+database_url = env("DATABASE_URL")
+
+if database_url:
+    parsed = urlparse(database_url)
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.postgresql",
-            "NAME": env("DB_NAME", "consulta_juridica"),
-            "USER": env("DB_USER", "postgres"),
-            "PASSWORD": env("DB_PASSWORD", "postgres"),
-            "HOST": env("DB_HOST", "db"),
-            "PORT": env("DB_PORT", "5432"),
+            "NAME": parsed.path.lstrip("/"),
+            "USER": parsed.username,
+            "PASSWORD": parsed.password,
+            "HOST": parsed.hostname,
+            "PORT": parsed.port or "5432",
+            "OPTIONS": {
+                "sslmode": "require",
+            },
         }
     }
+else:
+    DATABASE_ENGINE = env("DB_ENGINE", "postgresql")
+    if DATABASE_ENGINE == "sqlite":
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.sqlite3",
+                "NAME": BASE_DIR / "db.sqlite3",
+            }
+        }
+    else:
+        DATABASES = {
+            "default": {
+                "ENGINE": "django.db.backends.postgresql",
+                "NAME": env("DB_NAME", "consulta_juridica"),
+                "USER": env("DB_USER", "postgres"),
+                "PASSWORD": env("DB_PASSWORD", "postgres"),
+                "HOST": env("DB_HOST", "db"),
+                "PORT": env("DB_PORT", "5432"),
+            }
+        }
 
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
