@@ -75,6 +75,7 @@ Variables backend relevantes:
 - `OPENAI_API_KEY`
 - `ASYNC_CONSULTATIONS`
 - `ASYNC_ADMIN_JOBS`
+- `AUTO_RUN_MIGRATIONS`
 - `BOOTSTRAP_LEGAL_DATA`
 
 Variables frontend relevantes:
@@ -215,6 +216,8 @@ sh ./scripts/start-gunicorn.sh
 - `LLM_PROVIDER=mock` para el MVP actual
 - `ASYNC_CONSULTATIONS=false` si no desplegaste worker
 - `ASYNC_ADMIN_JOBS=false` si no desplegaste worker
+- `AUTO_RUN_MIGRATIONS=true` para correr migraciones al arrancar el contenedor
+- `BOOTSTRAP_LEGAL_DATA=true` solo si quieres sembrar datos demo al arrancar
 
 ### Paso obligatorio despues del primer deploy
 

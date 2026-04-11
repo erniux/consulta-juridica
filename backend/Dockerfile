@@ -15,4 +15,4 @@ RUN pip install --no-cache-dir -r /tmp/requirements/dev.txt
 COPY backend /app/backend
 COPY docker /app/docker
 
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["sh", "./scripts/start-gunicorn.sh"]
