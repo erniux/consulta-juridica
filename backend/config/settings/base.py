@@ -80,6 +80,7 @@ INSTALLED_APPS += [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
 ]
 
@@ -147,7 +148,7 @@ if database_url:
             "PORT": parsed.port or "5432",
             "OPTIONS": {
                 "sslmode": "require",
-            },
+            },[]
         }
     }
 else:
