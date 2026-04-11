@@ -1,0 +1,31 @@
+export function SourceSummary({ sources, documents }) {
+  return (
+    <div className="stack">
+      <section className="card">
+        <h3>Fuentes activas</h3>
+        <div className="stack compact">
+          {sources.map((source) => (
+            <div key={source.id}>
+              <strong>{source.name}</strong>
+              <p className="muted">{source.authority}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="card">
+        <h3>Documentos indexados</h3>
+        <div className="stack compact">
+          {documents.map((document) => (
+            <div key={document.id}>
+              <strong>{document.short_name}</strong>
+              <p className="muted">
+                {document.document_type} | {document.fragment_count || 0} fragmentos
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
