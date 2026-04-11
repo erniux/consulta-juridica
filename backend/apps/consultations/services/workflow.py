@@ -4,6 +4,7 @@ from django.db import transaction
 from common.text import normalize_text
 
 from apps.citations.models import ConsultationCitation
+from apps.legal_indexing.models import DocumentFragment
 from apps.legal_indexing.services.retrieval import retrieve_fragments
 from apps.llm_orchestrator.services.classifiers import classify_matter, detect_topics, expand_query
 from apps.llm_orchestrator.services.orchestrator import generate_consultation_answer
@@ -52,6 +53,15 @@ def process_consultation(consultation: Consultation):
 
     try:
         with transaction.atomic():
+            if not DocumentFragment.objects.exists():
+                return _mark_consultation_failed(
+                    consultation,
+                    (
+                        "La base juridica no tiene fragmentos indexados. "
+                        "Ejecuta una ingesta inicial o carga el seed antes de publicar consultas."
+                    ),
+                )
+
             queries = expand_query(
                 consultation.prompt,
                 consultation.detected_matter,
@@ -59,6 +69,15 @@ def process_consultation(consultation: Consultation):
             )
             hit_groups = [retrieve_fragments(query) for query in queries]
             hits = _merge_hits(hit_groups)[: settings.DEFAULT_RETRIEVAL_LIMIT]
+
+            if not hits:
+                return _mark_consultation_failed(
+                    consultation,
+                    (
+                        "No se recuperaron fragmentos para esta consulta. "
+                        "Verifica la cobertura documental o vuelve a indexar la base juridica."
+                    ),
+                )
 
             ConsultationRetrieval.objects.filter(consultation=consultation).delete()
             ConsultationCitation.objects.filter(consultation=consultation).delete()
