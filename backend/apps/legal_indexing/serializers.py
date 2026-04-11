@@ -16,6 +16,7 @@ class DocumentFragmentSerializer(serializers.ModelSerializer):
         source="legal_document.digital_registry_number",
         read_only=True,
     )
+    official_url = serializers.SerializerMethodField()
     topics = serializers.SerializerMethodField()
 
     class Meta:
@@ -25,6 +26,7 @@ class DocumentFragmentSerializer(serializers.ModelSerializer):
             "document_title",
             "source_name",
             "digital_registry_number",
+            "official_url",
             "fragment_type",
             "article_number",
             "section_path",
@@ -38,6 +40,9 @@ class DocumentFragmentSerializer(serializers.ModelSerializer):
 
     def get_topics(self, obj):
         return [relation.topic.slug for relation in obj.topic_relations.select_related("topic")]
+
+    def get_official_url(self, obj):
+        return obj.legal_document.get_public_url()
 
 
 class IngestionJobSerializer(serializers.ModelSerializer):

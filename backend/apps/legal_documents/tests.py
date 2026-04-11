@@ -41,6 +41,10 @@ class LegalDocumentApiTests(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["results"][0]["digital_registry_number"], "2026001")
+        self.assertEqual(
+            response.data["results"][0]["official_url"],
+            "https://sjf2.scjn.gob.mx/detalle/tesis/2026001",
+        )
 
     def test_document_list_can_search_by_digital_registry_number(self):
         response = self.client.get("/api/documents/", {"q": "2026001"})

@@ -67,6 +67,10 @@ button:disabled {
   color: #0050a5;
 }
 
+.inline-link {
+  display: inline;
+}
+
 .full-width {
   width: 100%;
 }

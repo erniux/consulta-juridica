@@ -13,7 +13,19 @@ export function CitationList({ citations }) {
           </p>
           {citation.digital_registry_number ? (
             <p className="muted">
-              Registro digital: {citation.digital_registry_number}
+              Registro digital:{" "}
+              {citation.official_url ? (
+                <a
+                  className="text-link inline-link"
+                  href={citation.official_url}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  {citation.digital_registry_number}
+                </a>
+              ) : (
+                citation.digital_registry_number
+              )}
             </p>
           ) : null}
           <p>{citation.snippet_used}</p>

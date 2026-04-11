@@ -98,6 +98,7 @@ Articulo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a las pre
         "last_reform_date": date(2024, 9, 1),
         "version_label": "tesis-demo-v1",
         "digital_registry_number": "2026001",
+        "official_url": "https://sjf2.scjn.gob.mx/detalle/tesis/2026001",
         "raw_text": """
 Rubro. Renuncia firmada bajo presion. Cuando una persona trabajadora afirma que la renuncia fue obtenida bajo presion o despues de un accidente de trabajo, el juzgador debe analizar integralmente el contexto probatorio.
 
@@ -200,7 +201,7 @@ class Command(BaseCommand):
                     "publication_date": item["publication_date"],
                     "effective_date": item["effective_date"],
                     "last_reform_date": item["last_reform_date"],
-                    "official_url": source.official_url,
+                    "official_url": item.get("official_url") or source.official_url,
                     "digital_registry_number": item.get("digital_registry_number", ""),
                     "raw_text": item["raw_text"],
                     "metadata_json": {"seeded": True},

@@ -6,6 +6,7 @@ from .models import LegalDocument
 class LegalDocumentListSerializer(serializers.ModelSerializer):
     source_name = serializers.CharField(source="source.name", read_only=True)
     fragment_count = serializers.IntegerField(read_only=True)
+    official_url = serializers.SerializerMethodField()
 
     class Meta:
         model = LegalDocument
@@ -22,13 +23,18 @@ class LegalDocumentListSerializer(serializers.ModelSerializer):
             "is_current",
             "source_name",
             "fragment_count",
+            "official_url",
             "updated_at",
         ]
+
+    def get_official_url(self, obj):
+        return obj.get_public_url()
 
 
 class LegalDocumentDetailSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
     fragments = serializers.SerializerMethodField()
+    official_url = serializers.SerializerMethodField()
 
     class Meta:
         model = LegalDocument
@@ -62,6 +68,9 @@ class LegalDocumentDetailSerializer(serializers.ModelSerializer):
             "authority": obj.source.authority,
             "official_url": obj.source.official_url,
         }
+
+    def get_official_url(self, obj):
+        return obj.get_public_url()
 
     def get_fragments(self, obj):
         from apps.legal_indexing.serializers import DocumentFragmentSerializer

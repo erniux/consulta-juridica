@@ -55,3 +55,17 @@ class LegalDocument(TimeStampedModel):
 
     def __str__(self):
         return self.title
+
+    def get_public_url(self) -> str:
+        if (
+            self.document_type == self.DocumentType.THESIS
+            and self.digital_registry_number
+            and self.source_id
+            and self.source.type == self.source.SourceType.JURISPRUDENCE
+        ):
+            return f"https://sjf2.scjn.gob.mx/detalle/tesis/{self.digital_registry_number}"
+        if self.official_url:
+            return self.official_url
+        if self.source_id:
+            return self.source.official_url
+        return ""

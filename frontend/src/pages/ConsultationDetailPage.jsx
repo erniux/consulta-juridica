@@ -98,7 +98,19 @@ export function ConsultationDetailPage() {
                   </p>
                   {retrieval.fragment.digital_registry_number ? (
                     <p className="muted">
-                      Registro digital: {retrieval.fragment.digital_registry_number}
+                      Registro digital:{" "}
+                      {retrieval.fragment.official_url ? (
+                        <a
+                          className="text-link inline-link"
+                          href={retrieval.fragment.official_url}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {retrieval.fragment.digital_registry_number}
+                        </a>
+                      ) : (
+                        retrieval.fragment.digital_registry_number
+                      )}
                     </p>
                   ) : null}
                   {retrieval.fragment.official_url ? (

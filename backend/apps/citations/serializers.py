@@ -11,6 +11,7 @@ class ConsultationCitationSerializer(serializers.ModelSerializer):
         read_only=True,
     )
     source_name = serializers.CharField(source="fragment.legal_document.source.name", read_only=True)
+    official_url = serializers.SerializerMethodField()
 
     class Meta:
         model = ConsultationCitation
@@ -20,8 +21,12 @@ class ConsultationCitationSerializer(serializers.ModelSerializer):
             "document_title",
             "digital_registry_number",
             "source_name",
+            "official_url",
             "citation_label",
             "snippet_used",
             "order_index",
             "created_at",
         ]
+
+    def get_official_url(self, obj):
+        return obj.fragment.legal_document.get_public_url()
