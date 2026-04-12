@@ -7,7 +7,12 @@ from apps.citations.models import ConsultationCitation
 from apps.legal_documents.models import LegalDocument
 from apps.legal_indexing.models import DocumentFragment
 from apps.legal_indexing.services.retrieval import retrieve_fragments
-from apps.llm_orchestrator.services.classifiers import classify_matter, detect_topics, expand_query
+from apps.llm_orchestrator.services.classifiers import (
+    classify_matter,
+    detect_topics,
+    expand_query,
+    generate_jurisprudence_queries,
+)
 from apps.llm_orchestrator.services.orchestrator import generate_consultation_answer
 
 from ..models import Consultation, ConsultationRetrieval
@@ -128,6 +133,11 @@ def process_consultation(consultation: Consultation):
                 consultation.detected_matter,
                 consultation.detected_topics_json,
             )
+            jurisprudence_queries = generate_jurisprudence_queries(
+                consultation.prompt,
+                consultation.detected_matter,
+                consultation.detected_topics_json,
+            )
             hit_groups = [retrieve_fragments(query) for query in queries]
             primary_hits = _merge_hits(hit_groups)
 
@@ -142,7 +152,7 @@ def process_consultation(consultation: Consultation):
                         limit=max(2, settings.DEFAULT_RETRIEVAL_LIMIT // 2),
                         document_type=LegalDocument.DocumentType.THESIS,
                     )
-                    for query in queries
+                    for query in jurisprudence_queries
                 ]
                 jurisprudence_hits = _merge_hits(jurisprudence_hit_groups)
 
@@ -201,6 +211,7 @@ def process_consultation(consultation: Consultation):
             consultation.answer_metadata_json = {
                 "provider": settings.LLM_PROVIDER,
                 "expanded_queries": queries,
+                "jurisprudence_queries": jurisprudence_queries,
                 "prompt_template": provider_answer.prompt_template,
                 "citation_count": len(provider_answer.citations),
             }
