@@ -11,35 +11,52 @@ from ..models import DocumentFragment, IngestionJob
 from .indexing import index_fragments
 
 
-ARTICLE_PATTERN = re.compile(
-    r"(^\s*Art(?:í|i)culo\s+\d+[A-Za-z-]*\.?.*?)(?=^\s*Art(?:í|i)culo\s+\d+[A-Za-z-]*\.?|\Z)",
-    re.IGNORECASE | re.DOTALL | re.MULTILINE,
+ARTICLE_HEADER_PATTERN = re.compile(
+    r"^\s*(?P<header>Articulo\s+(?P<number>\d+[A-Za-z-]*(?:\s+[A-Za-z-]+)?)\.)\s*(?P<rest>.*)$",
+    re.IGNORECASE,
+)
+ARTICLE_TITLE_PATTERN = re.compile(
+    r"^Articulo\s+(?P<number>\d+[A-Za-z-]*(?:\s+[A-Za-z-]+)?)$",
+    re.IGNORECASE,
 )
 
 
 def _split_document(raw_text: str) -> list[tuple[str, str]]:
-    normalized_source = raw_text.replace("ArtÃ­culo", "Artículo")
-    matches = ARTICLE_PATTERN.findall(normalized_source)
-    if matches:
-        chunks = []
-        for match in matches:
-            lines = [line.strip() for line in match.splitlines() if line.strip()]
-            first_line = lines[0]
-            article_header_match = re.match(
-                r"^(Art(?:í|i)culo\s+\d+[A-Za-z-]*)(?:\.\s*(.*))?$",
-                first_line,
-                re.IGNORECASE,
-            )
-            if article_header_match:
-                title = article_header_match.group(1).rstrip(".")
-                inline_content = (article_header_match.group(2) or "").strip()
-                content_lines = [inline_content] if inline_content else []
-                content_lines.extend(lines[1:])
-                content = "\n".join(content_lines).strip() or title
-            else:
-                title = first_line.rstrip(".")
-                content = "\n".join(lines[1:]).strip() or title
-            chunks.append((title, content))
+    normalized_source = (
+        raw_text.replace("ArtÃƒÂ­culo", "Articulo")
+        .replace("ArtÃ­culo", "Articulo")
+        .replace("Artículo", "Articulo")
+    )
+    chunks = []
+    current_title = None
+    current_content_lines = []
+
+    def flush_current_chunk():
+        if not current_title:
+            return
+        content = "\n".join(line for line in current_content_lines if line).strip() or current_title
+        chunks.append((current_title, content))
+
+    for raw_line in normalized_source.splitlines():
+        line = raw_line.strip()
+        if not line:
+            if current_title and current_content_lines and current_content_lines[-1] != "":
+                current_content_lines.append("")
+            continue
+
+        article_header_match = ARTICLE_HEADER_PATTERN.match(line)
+        if article_header_match:
+            flush_current_chunk()
+            current_title = article_header_match.group("header").rstrip(".")
+            inline_content = article_header_match.group("rest").strip()
+            current_content_lines = [inline_content] if inline_content else []
+            continue
+
+        if current_title:
+            current_content_lines.append(line)
+
+    if chunks or current_title:
+        flush_current_chunk()
         return chunks
 
     paragraphs = [chunk.strip() for chunk in raw_text.split("\n\n") if chunk.strip()]
@@ -52,9 +69,9 @@ def parse_document_into_fragments(document: LegalDocument):
     created_fragments = []
     for index, (title, content) in enumerate(_split_document(document.raw_text), start=1):
         article_number = None
-        article_match = re.search(r"Art(?:í|i)culo\s+(\d+[A-Za-z-]*)", title, re.IGNORECASE)
+        article_match = ARTICLE_TITLE_PATTERN.match(title)
         if article_match:
-            article_number = article_match.group(1)
+            article_number = article_match.group("number")
 
         fragment = DocumentFragment.objects.create(
             legal_document=document,

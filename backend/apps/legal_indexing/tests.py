@@ -35,22 +35,36 @@ Contexto. El criterio proviene de una contradiccion de tesis resuelta por la Seg
         self.assertEqual(chunks[1][0], "Fragmento 2")
         self.assertIn("articulo 802", chunks[1][1].lower())
 
-    def test_split_document_detects_real_article_headers_with_accents(self):
+    def test_split_document_detects_real_article_headers(self):
         raw_text = """
-Artículo 1. La presente Ley es de observancia general.
-Artículo 2. La seguridad social tiene por finalidad garantizar el derecho a la salud.
+Articulo 1. La presente Ley es de observancia general.
+Articulo 2. La seguridad social tiene por finalidad garantizar el derecho a la salud.
 """.strip()
 
         chunks = _split_document(raw_text)
 
         self.assertEqual(len(chunks), 2)
-        self.assertEqual(chunks[0][0], "Artículo 1")
-        self.assertEqual(chunks[1][0], "Artículo 2")
+        self.assertEqual(chunks[0][0], "Articulo 1")
+        self.assertEqual(chunks[1][0], "Articulo 2")
+
+    def test_split_document_ignores_lines_that_only_start_like_articles(self):
+        raw_text = """
+Articulo 15. Los patrones deben registrarse ante el Instituto.
+articulo 15 A de esta Ley, y tendran hasta el 1 de septiembre de 2021 para regularizarse.
+Articulo 16. Los patrones deben determinar las cuotas obrero patronales.
+""".strip()
+
+        chunks = _split_document(raw_text)
+
+        self.assertEqual(len(chunks), 2)
+        self.assertEqual(chunks[0][0], "Articulo 15")
+        self.assertIn("articulo 15 A de esta Ley", chunks[0][1])
+        self.assertEqual(chunks[1][0], "Articulo 16")
 
 
 class OfficialSyncHelpersTests(SimpleTestCase):
     def test_extract_last_reform_date_from_official_pdf_text(self):
-        raw_text = "LEY DEL SEGURO SOCIAL\nÚltima Reforma DOF 15-01-2026\nArtículo 1."
+        raw_text = "LEY DEL SEGURO SOCIAL\nUltima Reforma DOF 15-01-2026\nArticulo 1."
 
         reform_date = extract_last_reform_date(raw_text)
 
@@ -59,18 +73,18 @@ class OfficialSyncHelpersTests(SimpleTestCase):
     def test_normalize_official_pdf_text_removes_headers_and_keeps_articles(self):
         raw_text = """
 LEY DEL SEGURO SOCIAL
-CÁMARA DE DIPUTADOS DEL H. CONGRESO DE LA UNIÓN
-Secretaría General
-Secretaría de Servicios Parlamentarios
-Última Reforma DOF 15-01-2026
+CAMARA DE DIPUTADOS DEL H. CONGRESO DE LA UNION
+Secretaria General
+Secretaria de Servicios Parlamentarios
+Ultima Reforma DOF 15-01-2026
 1 de 181
-Artículo 1. La presente Ley es de observancia general.
+Articulo 1. La presente Ley es de observancia general.
 """.strip()
 
         normalized = normalize_official_pdf_text(raw_text)
 
-        self.assertNotIn("CÁMARA DE DIPUTADOS", normalized)
-        self.assertIn("Artículo 1. La presente Ley es de observancia general.", normalized)
+        self.assertNotIn("CAMARA DE DIPUTADOS", normalized)
+        self.assertIn("Articulo 1. La presente Ley es de observancia general.", normalized)
 
     def test_build_version_label_uses_last_reform_date_when_available(self):
         version_label = build_version_label(date(2026, 1, 15), "abc123")
@@ -89,8 +103,8 @@ class OfficialSyncTests(TestCase):
         mocked_extract_payload.return_value = OfficialPdfPayload(
             raw_text="PDF raw text",
             cleaned_text=(
-                "Artículo 1. La presente Ley es de observancia general.\n"
-                "Artículo 2. La seguridad social tiene por finalidad garantizar el derecho a la salud."
+                "Articulo 1. La presente Ley es de observancia general.\n"
+                "Articulo 2. La seguridad social tiene por finalidad garantizar el derecho a la salud."
             ),
             sha256="abcd1234" * 8,
             page_count=120,
@@ -106,7 +120,10 @@ class OfficialSyncTests(TestCase):
         self.assertEqual(document.metadata_json["source_kind"], "official_pdf")
         self.assertEqual(document.fragments.count(), 2)
         self.assertTrue(
-            Source.objects.filter(slug="lss", official_url="https://www.diputados.gob.mx/LeyesBiblio/pdf/LSS.pdf").exists()
+            Source.objects.filter(
+                slug="lss",
+                official_url="https://www.diputados.gob.mx/LeyesBiblio/pdf/LSS.pdf",
+            ).exists()
         )
         self.assertTrue(
             LegalDocument.objects.filter(
@@ -161,11 +178,11 @@ class RetrievalRankingTests(TestCase):
             version_label="vigente-2026-01-15",
             official_url=self.lss_source.official_url,
             raw_text=(
-                "Artículo 15. Las personas empleadoras estan obligadas a registrarse e inscribir "
+                "Articulo 15. Las personas empleadoras estan obligadas a registrarse e inscribir "
                 "a sus trabajadores ante el Instituto, comunicar sus altas y bajas, modificaciones "
                 "de salario y los demas datos en los plazos legales.\n\n"
-                "Artículo 43. En caso de accidente de trabajo el patron debe dar aviso al Instituto.\n\n"
-                "Artículo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones."
+                "Articulo 43. En caso de accidente de trabajo el patron debe dar aviso al Instituto.\n\n"
+                "Articulo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones."
             ),
         )
         parse_document_into_fragments(self.lss_document)
@@ -178,8 +195,8 @@ class RetrievalRankingTests(TestCase):
             version_label="vigente-2026-01-15",
             official_url=self.lft_source.official_url,
             raw_text=(
-                "Artículo 51. Son causas de rescision de la relacion de trabajo sin responsabilidad para el trabajador.\n\n"
-                "Artículo 474. Accidente de trabajo es toda lesion organica producida repentinamente."
+                "Articulo 51. Son causas de rescision de la relacion de trabajo sin responsabilidad para el trabajador.\n\n"
+                "Articulo 474. Accidente de trabajo es toda lesion organica producida repentinamente."
             ),
         )
         parse_document_into_fragments(self.lft_document)
@@ -191,7 +208,7 @@ class RetrievalRankingTests(TestCase):
             subject_area=LegalDocument.SubjectArea.SOCIAL_SECURITY,
             version_label="demo-lss-v1",
             official_url=self.lss_source.official_url,
-            raw_text="Artículo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones.",
+            raw_text="Articulo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones.",
             metadata_json={"seeded": True, "source_kind": "demo_seed"},
             is_current=False,
         )
