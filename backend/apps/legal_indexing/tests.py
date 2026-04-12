@@ -7,7 +7,7 @@ from apps.legal_documents.models import LegalDocument
 from apps.legal_indexing.models import IngestionJob
 from apps.legal_sources.models import Source
 
-from .services.ingestion import _split_document
+from .services.ingestion import _split_document, parse_document_into_fragments
 from .services.official_sync import (
     OfficialPdfPayload,
     build_version_label,
@@ -15,6 +15,7 @@ from .services.official_sync import (
     normalize_official_pdf_text,
     sync_official_documents,
 )
+from .services.retrieval import retrieve_fragments
 
 
 class IngestionParsingTests(SimpleTestCase):
@@ -131,3 +132,64 @@ class OfficialSyncTests(TestCase):
 
         mocked_sync.assert_called_once_with(["lft", "lss"])
         self.assertEqual(job.status, IngestionJob.Status.COMPLETED)
+
+
+class RetrievalRankingTests(TestCase):
+    def setUp(self):
+        self.lss_source = Source.objects.create(
+            name="Ley del Seguro Social",
+            slug="lss",
+            type=Source.SourceType.LAW,
+            authority="Camara de Diputados",
+            official_url="https://www.diputados.gob.mx/LeyesBiblio/pdf/LSS.pdf",
+            is_active=True,
+        )
+        self.lft_source = Source.objects.create(
+            name="Ley Federal del Trabajo",
+            slug="lft",
+            type=Source.SourceType.LAW,
+            authority="Camara de Diputados",
+            official_url="https://www.diputados.gob.mx/LeyesBiblio/pdf/LFT.pdf",
+            is_active=True,
+        )
+        self.lss_document = LegalDocument.objects.create(
+            source=self.lss_source,
+            title="Ley del Seguro Social",
+            short_name="LSS",
+            document_type=LegalDocument.DocumentType.LAW,
+            subject_area=LegalDocument.SubjectArea.SOCIAL_SECURITY,
+            version_label="vigente-2026-01-15",
+            official_url=self.lss_source.official_url,
+            raw_text=(
+                "Artículo 15. Las personas empleadoras estan obligadas a registrarse e inscribir "
+                "a sus trabajadores ante el Instituto, comunicar sus altas y bajas, modificaciones "
+                "de salario y los demas datos en los plazos legales.\n\n"
+                "Artículo 43. En caso de accidente de trabajo el patron debe dar aviso al Instituto.\n\n"
+                "Artículo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones."
+            ),
+        )
+        parse_document_into_fragments(self.lss_document)
+        self.lft_document = LegalDocument.objects.create(
+            source=self.lft_source,
+            title="Ley Federal del Trabajo",
+            short_name="LFT",
+            document_type=LegalDocument.DocumentType.LAW,
+            subject_area=LegalDocument.SubjectArea.LABOR,
+            version_label="vigente-2026-01-15",
+            official_url=self.lft_source.official_url,
+            raw_text=(
+                "Artículo 51. Son causas de rescision de la relacion de trabajo sin responsabilidad para el trabajador.\n\n"
+                "Artículo 474. Accidente de trabajo es toda lesion organica producida repentinamente."
+            ),
+        )
+        parse_document_into_fragments(self.lft_document)
+
+    def test_retrieve_fragments_prioritizes_exact_article_and_source_match(self):
+        hits = retrieve_fragments(
+            "Que dice el articulo 15 de la Ley del Seguro Social sobre obligaciones del patron?",
+            limit=3,
+        )
+
+        self.assertGreater(len(hits), 0)
+        self.assertEqual(hits[0].fragment.legal_document.short_name, "LSS")
+        self.assertEqual(hits[0].fragment.article_number, "15")

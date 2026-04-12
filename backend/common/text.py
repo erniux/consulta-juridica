@@ -50,7 +50,7 @@ def tokenize(value: str) -> list[str]:
     return [
         token
         for token in normalize_text(value).split()
-        if token and token not in STOPWORDS and len(token) > 2
+        if token and token not in STOPWORDS and (len(token) > 2 or token.isdigit())
     ]
 
 

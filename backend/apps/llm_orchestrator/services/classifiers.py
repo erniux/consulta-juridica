@@ -1,4 +1,6 @@
-from common.text import tokenize
+import re
+
+from common.text import normalize_text, tokenize
 
 
 MATTER_RULES = {
@@ -6,6 +8,14 @@ MATTER_RULES = {
     "social_security": ["imss", "seguro", "social", "asegurado", "pension"],
     "labor_individual": ["despido", "renuncia", "patron", "salario", "jornada"],
 }
+
+PRECISE_LOOKUP_PATTERN = re.compile(r"\barticulo\s+\d+[a-z-]*\b", re.IGNORECASE)
+PRECISE_SOURCE_HINTS = (
+    "ley federal del trabajo",
+    "ley del seguro social",
+    "lft",
+    "lss",
+)
 
 
 def classify_matter(prompt: str) -> str:
@@ -30,8 +40,23 @@ def detect_topics(prompt: str) -> list[str]:
     return topics
 
 
+def is_precise_legal_lookup(prompt: str) -> bool:
+    normalized_prompt = normalize_text(prompt)
+    return bool(
+        PRECISE_LOOKUP_PATTERN.search(normalized_prompt)
+        or any(hint in normalized_prompt for hint in PRECISE_SOURCE_HINTS)
+    )
+
+
 def expand_query(prompt: str, matter: str, topics: list[str]) -> list[str]:
     expansions = [prompt]
+
+    if is_precise_legal_lookup(prompt):
+        normalized_prompt = normalize_text(prompt)
+        if normalized_prompt and normalized_prompt != prompt:
+            expansions.append(normalized_prompt)
+        return list(dict.fromkeys(expansions))
+
     if matter == "occupational_risk":
         expansions.append("riesgo de trabajo incapacidad patron IMSS")
     if matter == "social_security":
@@ -40,4 +65,4 @@ def expand_query(prompt: str, matter: str, topics: list[str]) -> list[str]:
         expansions.append("relacion laboral renuncia despido derechos trabajador")
     for topic in topics:
         expansions.append(topic.replace("-", " "))
-    return expansions
+    return list(dict.fromkeys(expansions))
