@@ -2,6 +2,7 @@ import re
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.db.models import Q
 
 from common.text import (
     cosine_similarity,
@@ -86,11 +87,38 @@ def _article_specific_boost(fragment: DocumentFragment, target_article_numbers: 
     return 1.25 if fragment_article in target_article_numbers else -0.15
 
 
+def _build_hit(fragment: DocumentFragment, query_vector: list[float], query: str) -> RetrievalHit:
+    searchable_text = _build_searchable_text(fragment)
+    keyword_score = keyword_overlap_score(query, searchable_text)
+    embedding_vector = fragment.embedding.embedding if hasattr(fragment, "embedding") else None
+    semantic_score = cosine_similarity(query_vector, embedding_vector)
+    retrieval_type = "hybrid" if keyword_score and semantic_score else "keyword"
+    combined_score = round((keyword_score * 0.7) + (semantic_score * 0.3), 4)
+    return RetrievalHit(
+        fragment=fragment,
+        keyword_score=keyword_score,
+        semantic_score=semantic_score,
+        combined_score=combined_score,
+        retrieval_type=retrieval_type,
+    )
+
+
+def _exact_article_queryset(queryset, target_source_slugs: set[str], target_article_numbers: set[str]):
+    if not target_source_slugs or not target_article_numbers:
+        return queryset.none()
+
+    article_filter = Q()
+    for article_number in target_article_numbers:
+        article_filter |= Q(article_number__iexact=article_number)
+
+    return queryset.filter(article_filter, legal_document__source__slug__in=target_source_slugs)
+
+
 def retrieve_fragments(query: str, limit: int | None = None, document_type: str | None = None):
     limit = limit or settings.DEFAULT_RETRIEVAL_LIMIT
     queryset = (
         DocumentFragment.objects.select_related("legal_document", "legal_document__source")
-        .prefetch_related("embedding", "topic_relations__topic")
+        .prefetch_related("embedding")
         .filter(legal_document__is_current=True)
     )
 
@@ -103,6 +131,17 @@ def retrieve_fragments(query: str, limit: int | None = None, document_type: str 
 
     target_article_numbers = _extract_target_article_numbers(query)
     query_vector = deterministic_embedding(query, settings.VECTOR_DIMENSIONS)
+
+    exact_article_matches = list(
+        _exact_article_queryset(
+            queryset,
+            target_source_slugs,
+            target_article_numbers,
+        ).order_by("legal_document__title", "order_index")[:limit]
+    )
+    if exact_article_matches:
+        return [_build_hit(fragment, query_vector, query) for fragment in exact_article_matches]
+
     hits = []
     for fragment in queryset:
         searchable_text = _build_searchable_text(fragment)

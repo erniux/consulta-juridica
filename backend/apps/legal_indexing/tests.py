@@ -181,6 +181,7 @@ class RetrievalRankingTests(TestCase):
                 "Articulo 15. Las personas empleadoras estan obligadas a registrarse e inscribir "
                 "a sus trabajadores ante el Instituto, comunicar sus altas y bajas, modificaciones "
                 "de salario y los demas datos en los plazos legales.\n\n"
+                "Articulo 150. El Instituto podra realizar acciones complementarias de verificacion administrativa.\n\n"
                 "Articulo 43. En caso de accidente de trabajo el patron debe dar aviso al Instituto.\n\n"
                 "Articulo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones."
             ),
@@ -223,6 +224,7 @@ class RetrievalRankingTests(TestCase):
         self.assertGreater(len(hits), 0)
         self.assertEqual(hits[0].fragment.legal_document.short_name, "LSS")
         self.assertEqual(hits[0].fragment.article_number, "15")
+        self.assertTrue(all(hit.fragment.article_number == "15" for hit in hits))
 
     def test_retrieve_fragments_ignores_non_current_documents(self):
         hits = retrieve_fragments(
