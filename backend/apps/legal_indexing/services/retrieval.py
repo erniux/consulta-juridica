@@ -137,13 +137,22 @@ def _candidate_queryset(queryset, query: str):
     return queryset
 
 
+def _hydrated_queryset(queryset):
+    return queryset.select_related("legal_document", "legal_document__source").prefetch_related(
+        "embedding"
+    ).defer(
+        "legal_document__raw_text",
+        "legal_document__metadata_json",
+        "legal_document__created_at",
+        "legal_document__updated_at",
+        "legal_document__publication_date",
+        "legal_document__effective_date",
+    )
+
+
 def retrieve_fragments(query: str, limit: int | None = None, document_type: str | None = None):
     limit = limit or settings.DEFAULT_RETRIEVAL_LIMIT
-    queryset = (
-        DocumentFragment.objects.select_related("legal_document", "legal_document__source")
-        .prefetch_related("embedding")
-        .filter(legal_document__is_current=True)
-    )
+    queryset = DocumentFragment.objects.filter(legal_document__is_current=True)
 
     if document_type:
         queryset = queryset.filter(legal_document__document_type=document_type)
@@ -156,19 +165,22 @@ def retrieve_fragments(query: str, limit: int | None = None, document_type: str 
     query_vector = deterministic_embedding(query, settings.VECTOR_DIMENSIONS)
 
     exact_article_matches = list(
-        _exact_article_queryset(
-            queryset,
-            target_source_slugs,
-            target_article_numbers,
+        _hydrated_queryset(
+            _exact_article_queryset(
+                queryset,
+                target_source_slugs,
+                target_article_numbers,
+            )
         ).order_by("legal_document__title", "order_index")[:limit]
     )
     if exact_article_matches:
         return [_build_hit(fragment, query_vector, query) for fragment in exact_article_matches]
 
     queryset = _candidate_queryset(queryset, query)
+    hydrated_queryset = _hydrated_queryset(queryset)
 
     hits = []
-    for fragment in queryset:
+    for fragment in hydrated_queryset.iterator(chunk_size=64):
         searchable_text = _build_searchable_text(fragment)
         keyword_score = keyword_overlap_score(query, searchable_text)
         embedding_vector = fragment.embedding.embedding if hasattr(fragment, "embedding") else None
