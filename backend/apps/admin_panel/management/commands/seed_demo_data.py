@@ -107,6 +107,66 @@ Criterio. Conforme al articulo 802 de la Ley Federal del Trabajo vigente hasta e
 Contexto. El criterio proviene de una contradiccion de tesis resuelta por la Segunda Sala de la Suprema Corte de Justicia de la Nacion y es util para analizar controversias sobre renuncias laborales ofrecidas como documentales privadas.
 """.strip(),
     },
+    {
+        "source_slug": "sjf",
+        "title": "Incremento de la indemnizacion por riesgo de trabajo por causa inexcusable del patron",
+        "short_name": "Registro 2029196",
+        "document_type": LegalDocument.DocumentType.THESIS,
+        "subject_area": LegalDocument.SubjectArea.OCCUPATIONAL_RISK,
+        "publication_date": date(2024, 8, 2),
+        "effective_date": date(2024, 8, 5),
+        "last_reform_date": date(2024, 8, 2),
+        "version_label": "registro-2029196",
+        "digital_registry_number": "2029196",
+        "official_url": "https://sjf2.scjn.gob.mx/detalle/tesis/2029196",
+        "raw_text": """
+Rubro. Incremento de la indemnizacion por riesgo de trabajo por causa inexcusable del patron. Corresponde a la persona trabajadora acreditar la negligencia patronal cuando afirme que el accidente de trabajo o la perdida parcial del miembro se agravo por incumplimientos de seguridad.
+
+Criterio. Si en juicio se reclama el aumento de la indemnizacion por un accidente de trabajo con lesiones permanentes, como amputacion o perdida funcional en dedos de la mano, deben demostrarse los hechos que revelen la falta inexcusable del patron, por ejemplo la omision de medidas de seguridad, capacitacion o resguardo de maquinaria.
+
+Aplicacion practica. El criterio es util para consultas sobre obligaciones patronales, accidentes de trabajo, indemnizacion adicional, incapacidad permanente parcial y consecuencias de no prevenir riesgos en el centro laboral.
+""".strip(),
+    },
+    {
+        "source_slug": "sjf",
+        "title": "Pension por incapacidad permanente parcial derivada de riesgo de trabajo",
+        "short_name": "Registro 2030063",
+        "document_type": LegalDocument.DocumentType.THESIS,
+        "subject_area": LegalDocument.SubjectArea.OCCUPATIONAL_RISK,
+        "publication_date": date(2024, 12, 13),
+        "effective_date": date(2024, 12, 16),
+        "last_reform_date": date(2024, 12, 13),
+        "version_label": "registro-2030063",
+        "digital_registry_number": "2030063",
+        "official_url": "https://sjf2.scjn.gob.mx/detalle/tesis/2030063",
+        "raw_text": """
+Rubro. Pension por incapacidad permanente parcial derivada de riesgo de trabajo. Procede condenar al IMSS a su incremento en ejecucion si la valuacion medica definitiva reconoce un porcentaje mayor al inicialmente determinado.
+
+Criterio. Cuando un accidente de trabajo genera secuelas permanentes, como perdida de dedos, disminucion funcional en la mano o limitacion de movilidad, la persona trabajadora puede reclamar que la pension o indemnizacion se ajuste al porcentaje real de incapacidad permanente parcial fijado por la autoridad medica competente.
+
+Aplicacion practica. Esta tesis ayuda a responder consultas sobre valuacion del dano, porcentaje de incapacidad, indemnizacion, pension y efectos economicos de lesiones permanentes originadas por riesgos de trabajo.
+""".strip(),
+    },
+    {
+        "source_slug": "sjf",
+        "title": "Pension por riesgo de trabajo ante tribunal laboral",
+        "short_name": "Registro 2031472",
+        "document_type": LegalDocument.DocumentType.THESIS,
+        "subject_area": LegalDocument.SubjectArea.SOCIAL_SECURITY,
+        "publication_date": date(2025, 10, 17),
+        "effective_date": date(2025, 10, 20),
+        "last_reform_date": date(2025, 10, 17),
+        "version_label": "registro-2031472",
+        "digital_registry_number": "2031472",
+        "official_url": "https://sjf2.scjn.gob.mx/detalle/tesis/2031472",
+        "raw_text": """
+Rubro. Pension por riesgo de trabajo. Cuando la accion se demanda ante un tribunal laboral, el articulo 61 de la Ley del Seguro Social no impide estudiar el derecho a prestaciones derivadas de accidente de trabajo o incapacidad.
+
+Criterio. Si la controversia versa sobre prestaciones por riesgo de trabajo, aviso al IMSS, incapacidad permanente o pension por secuelas del accidente, el organo jurisdiccional debe analizar el fondo del reclamo con perspectiva de tutela laboral y de seguridad social.
+
+Aplicacion practica. Esta tesis resulta relevante para casos en los que el patron no reporto oportunamente el accidente de trabajo, existe disputa sobre prestaciones del IMSS o se discute la via para reclamar pension e indemnizacion por lesiones permanentes.
+""".strip(),
+    },
 ]
 
 

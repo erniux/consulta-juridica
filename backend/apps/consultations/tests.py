@@ -66,6 +66,24 @@ class ConsultationWorkflowTests(TestCase):
             ),
         )
         parse_document_into_fragments(self.jurisprudence_document)
+        self.occupational_risk_jurisprudence_document = LegalDocument.objects.create(
+            source=self.jurisprudence_source,
+            title="Incremento de la indemnizacion por riesgo de trabajo por causa inexcusable del patron",
+            short_name="Registro 2029196",
+            document_type=LegalDocument.DocumentType.THESIS,
+            subject_area=LegalDocument.SubjectArea.OCCUPATIONAL_RISK,
+            version_label="registro-2029196",
+            digital_registry_number="2029196",
+            official_url="https://sjf2.scjn.gob.mx/detalle/tesis/2029196",
+            raw_text=(
+                "Rubro. Incremento de la indemnizacion por riesgo de trabajo por causa inexcusable del patron.\n\n"
+                "Criterio. Si un accidente de trabajo produce lesiones permanentes, como perdida funcional en dedos de la mano, "
+                "la persona trabajadora debe acreditar la negligencia patronal para obtener el incremento de la indemnizacion.\n\n"
+                "Aplicacion practica. Es util para consultas sobre obligaciones patronales, accidentes de trabajo, amputacion, "
+                "dedos de la mano e indemnizacion adicional."
+            ),
+        )
+        parse_document_into_fragments(self.occupational_risk_jurisprudence_document)
 
     def test_process_consultation_generates_citations(self):
         consultation = Consultation.objects.create(
@@ -90,7 +108,32 @@ class ConsultationWorkflowTests(TestCase):
         consultation.refresh_from_db()
 
         self.assertEqual(consultation.status, Consultation.Status.COMPLETED)
-        self.assertIn("registro digital 2023053", consultation.final_answer)
+        self.assertIn("registro digital", consultation.final_answer)
+        self.assertTrue(
+            consultation.citations.filter(
+                fragment__legal_document__document_type=LegalDocument.DocumentType.THESIS
+            ).exists()
+        )
+
+    def test_process_consultation_reserves_relevant_jurisprudence_for_accident_queries(self):
+        consultation = Consultation.objects.create(
+            user=self.user,
+            prompt=(
+                "Necesito revisar obligaciones patronales por accidente de trabajo con perdida "
+                "de algunos dedos de la mano."
+            ),
+        )
+
+        process_consultation(consultation)
+        consultation.refresh_from_db()
+
+        self.assertEqual(consultation.status, Consultation.Status.COMPLETED)
+        self.assertIn("registro digital 2029196", consultation.final_answer)
+        self.assertTrue(
+            consultation.citations.filter(
+                fragment__legal_document__digital_registry_number="2029196"
+            ).exists()
+        )
 
     @patch("apps.consultations.services.workflow.generate_consultation_answer")
     def test_process_consultation_marks_failed_when_unexpected_error_happens(self, mocked_generate):

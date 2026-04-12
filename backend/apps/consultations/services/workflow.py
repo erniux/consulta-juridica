@@ -4,12 +4,31 @@ from django.db import transaction
 from common.text import normalize_text
 
 from apps.citations.models import ConsultationCitation
+from apps.legal_documents.models import LegalDocument
 from apps.legal_indexing.models import DocumentFragment
 from apps.legal_indexing.services.retrieval import retrieve_fragments
 from apps.llm_orchestrator.services.classifiers import classify_matter, detect_topics, expand_query
 from apps.llm_orchestrator.services.orchestrator import generate_consultation_answer
 
 from ..models import Consultation, ConsultationRetrieval
+
+
+JURISPRUDENCE_DOCUMENT_TYPES = {
+    LegalDocument.DocumentType.THESIS,
+    LegalDocument.DocumentType.PRECEDENT,
+}
+JURISPRUDENCE_ELIGIBLE_MATTERS = {
+    "occupational_risk",
+    "social_security",
+    "labor_individual",
+}
+JURISPRUDENCE_ELIGIBLE_TOPICS = {
+    "riesgo-de-trabajo",
+    "seguridad-social",
+    "renuncia-forzada",
+    "despido",
+    "indemnizacion-riesgo-trabajo",
+}
 
 
 def _merge_hits(hit_groups):
@@ -20,6 +39,48 @@ def _merge_hits(hit_groups):
             if current is None or hit.combined_score > current.combined_score:
                 merged[hit.fragment.id] = hit
     return sorted(merged.values(), key=lambda item: item.combined_score, reverse=True)
+
+
+def _is_jurisprudence_hit(hit) -> bool:
+    return hit.fragment.legal_document.document_type in JURISPRUDENCE_DOCUMENT_TYPES
+
+
+def _should_include_jurisprudence(matter: str, topics: list[str]) -> bool:
+    return matter in JURISPRUDENCE_ELIGIBLE_MATTERS or bool(
+        set(topics).intersection(JURISPRUDENCE_ELIGIBLE_TOPICS)
+    )
+
+
+def _blend_hits(primary_hits, jurisprudence_hits, limit: int, jurisprudence_quota: int = 2):
+    if not jurisprudence_hits:
+        return primary_hits[:limit]
+
+    selected = []
+    selected_ids = set()
+
+    def add_hit(hit):
+        if hit.fragment.id in selected_ids or len(selected) >= limit:
+            return
+        selected.append(hit)
+        selected_ids.add(hit.fragment.id)
+
+    reserved_for_jurisprudence = min(
+        jurisprudence_quota,
+        len(jurisprudence_hits),
+        max(limit - 1, 0),
+    )
+    primary_non_jurisprudence_hits = [hit for hit in primary_hits if not _is_jurisprudence_hit(hit)]
+
+    for hit in primary_non_jurisprudence_hits[: max(limit - reserved_for_jurisprudence, 0)]:
+        add_hit(hit)
+    for hit in jurisprudence_hits[:reserved_for_jurisprudence]:
+        add_hit(hit)
+    for hit in primary_hits:
+        add_hit(hit)
+    for hit in jurisprudence_hits:
+        add_hit(hit)
+
+    return selected[:limit]
 
 
 def _mark_consultation_failed(consultation: Consultation, error_message: str):
@@ -68,7 +129,28 @@ def process_consultation(consultation: Consultation):
                 consultation.detected_topics_json,
             )
             hit_groups = [retrieve_fragments(query) for query in queries]
-            hits = _merge_hits(hit_groups)[: settings.DEFAULT_RETRIEVAL_LIMIT]
+            primary_hits = _merge_hits(hit_groups)
+
+            jurisprudence_hits = []
+            if _should_include_jurisprudence(
+                consultation.detected_matter,
+                consultation.detected_topics_json,
+            ):
+                jurisprudence_hit_groups = [
+                    retrieve_fragments(
+                        query,
+                        limit=max(2, settings.DEFAULT_RETRIEVAL_LIMIT // 2),
+                        document_type=LegalDocument.DocumentType.THESIS,
+                    )
+                    for query in queries
+                ]
+                jurisprudence_hits = _merge_hits(jurisprudence_hit_groups)
+
+            hits = _blend_hits(
+                primary_hits,
+                jurisprudence_hits,
+                limit=settings.DEFAULT_RETRIEVAL_LIMIT,
+            )
 
             if not hits:
                 return _mark_consultation_failed(

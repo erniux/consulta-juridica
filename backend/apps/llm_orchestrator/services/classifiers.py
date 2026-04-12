@@ -4,8 +4,22 @@ from common.text import normalize_text, tokenize
 
 
 MATTER_RULES = {
-    "occupational_risk": ["accidente", "riesgo", "incapacidad", "lesion", "caida"],
-    "social_security": ["imss", "seguro", "social", "asegurado", "pension"],
+    "occupational_risk": [
+        "accidente",
+        "riesgo",
+        "incapacidad",
+        "lesion",
+        "caida",
+        "amputacion",
+        "dedo",
+        "dedos",
+        "mano",
+        "falange",
+        "perdida",
+        "fractura",
+        "indemnizacion",
+    ],
+    "social_security": ["imss", "seguro", "social", "asegurado", "pension", "buzon"],
     "labor_individual": ["despido", "renuncia", "patron", "salario", "jornada"],
 }
 
@@ -29,7 +43,9 @@ def classify_matter(prompt: str) -> str:
 def detect_topics(prompt: str) -> list[str]:
     tokens = set(tokenize(prompt))
     topics = []
-    if tokens.intersection({"accidente", "riesgo", "incapacidad", "caida"}):
+    if tokens.intersection(
+        {"accidente", "riesgo", "incapacidad", "caida", "amputacion", "dedo", "dedos", "mano", "falange"}
+    ):
         topics.append("riesgo-de-trabajo")
     if tokens.intersection({"renuncia", "firma", "presion"}):
         topics.append("renuncia-forzada")
@@ -37,6 +53,8 @@ def detect_topics(prompt: str) -> list[str]:
         topics.append("seguridad-social")
     if tokens.intersection({"despido", "terminacion", "separacion"}):
         topics.append("despido")
+    if tokens.intersection({"indemnizacion", "porcentaje", "valuacion", "amputacion", "dedos", "mano"}):
+        topics.append("indemnizacion-riesgo-trabajo")
     return topics
 
 
