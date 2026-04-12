@@ -12,8 +12,8 @@ from .indexing import index_fragments
 
 
 ARTICLE_PATTERN = re.compile(
-    r"(Articulo\s+\d+[A-Za-z-]*\.?.*?)(?=(?:\nArticulo\s+\d+[A-Za-z-]*\.?)|\Z)",
-    re.IGNORECASE | re.DOTALL,
+    r"(^\s*Articulo\s+\d+[A-Za-z-]*\.?.*?)(?=^\s*Articulo\s+\d+[A-Za-z-]*\.?|\Z)",
+    re.IGNORECASE | re.DOTALL | re.MULTILINE,
 )
 
 
