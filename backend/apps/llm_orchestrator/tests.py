@@ -18,3 +18,11 @@ class ClassifierTests(SimpleTestCase):
 
         self.assertEqual(expansions[0], prompt)
         self.assertNotIn("seguro social incapacidad trabajo imss", expansions)
+
+    def test_expand_query_keeps_short_generic_queries_focused(self):
+        prompt = "Que es el buzon IMSS?"
+
+        expansions = expand_query(prompt, "social_security", ["seguridad-social"])
+
+        self.assertEqual(expansions[0], prompt)
+        self.assertNotIn("seguro social incapacidad trabajo imss", expansions)

@@ -50,9 +50,15 @@ def is_precise_legal_lookup(prompt: str) -> bool:
 
 def expand_query(prompt: str, matter: str, topics: list[str]) -> list[str]:
     expansions = [prompt]
+    normalized_prompt = normalize_text(prompt)
+    prompt_tokens = tokenize(prompt)
 
     if is_precise_legal_lookup(prompt):
-        normalized_prompt = normalize_text(prompt)
+        if normalized_prompt and normalized_prompt != prompt:
+            expansions.append(normalized_prompt)
+        return list(dict.fromkeys(expansions))
+
+    if len(prompt_tokens) <= 5:
         if normalized_prompt and normalized_prompt != prompt:
             expansions.append(normalized_prompt)
         return list(dict.fromkeys(expansions))

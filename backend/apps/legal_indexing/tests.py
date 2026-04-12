@@ -181,6 +181,7 @@ class RetrievalRankingTests(TestCase):
                 "Articulo 15. Las personas empleadoras estan obligadas a registrarse e inscribir "
                 "a sus trabajadores ante el Instituto, comunicar sus altas y bajas, modificaciones "
                 "de salario y los demas datos en los plazos legales.\n\n"
+                "Articulo 286 K. El buzon IMSS es el sistema de comunicacion electronica mediante el cual el Instituto realiza notificaciones, requerimientos y tramites digitales.\n\n"
                 "Articulo 150. El Instituto podra realizar acciones complementarias de verificacion administrativa.\n\n"
                 "Articulo 43. En caso de accidente de trabajo el patron debe dar aviso al Instituto.\n\n"
                 "Articulo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones."
@@ -233,3 +234,13 @@ class RetrievalRankingTests(TestCase):
         )
 
         self.assertTrue(all(hit.fragment.legal_document.is_current for hit in hits))
+
+    def test_retrieve_fragments_prioritizes_buzon_imss_for_short_query(self):
+        hits = retrieve_fragments(
+            "Que es el buzon IMSS?",
+            limit=3,
+        )
+
+        self.assertGreater(len(hits), 0)
+        self.assertEqual(hits[0].fragment.legal_document.short_name, "LSS")
+        self.assertEqual(hits[0].fragment.article_number, "286 K")

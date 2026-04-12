@@ -9,6 +9,7 @@ from common.text import (
     deterministic_embedding,
     keyword_overlap_score,
     normalize_text,
+    tokenize,
 )
 
 from apps.legal_documents.models import LegalDocument
@@ -114,6 +115,28 @@ def _exact_article_queryset(queryset, target_source_slugs: set[str], target_arti
     return queryset.filter(article_filter, legal_document__source__slug__in=target_source_slugs)
 
 
+def _candidate_queryset(queryset, query: str):
+    query_tokens = [token for token in tokenize(query) if len(token) >= 4 or token.isdigit()]
+    if not query_tokens:
+        return queryset
+
+    token_filter = Q()
+    for token in query_tokens[:6]:
+        token_filter |= (
+            Q(normalized_content__icontains=token)
+            | Q(title__icontains=token)
+            | Q(legal_document__title__icontains=token)
+            | Q(legal_document__short_name__icontains=token)
+            | Q(legal_document__source__name__icontains=token)
+            | Q(legal_document__source__slug__icontains=token)
+        )
+
+    candidate_ids = list(queryset.filter(token_filter).values_list("id", flat=True)[:250])
+    if candidate_ids:
+        return queryset.filter(id__in=candidate_ids)
+    return queryset
+
+
 def retrieve_fragments(query: str, limit: int | None = None, document_type: str | None = None):
     limit = limit or settings.DEFAULT_RETRIEVAL_LIMIT
     queryset = (
@@ -141,6 +164,8 @@ def retrieve_fragments(query: str, limit: int | None = None, document_type: str 
     )
     if exact_article_matches:
         return [_build_hit(fragment, query_vector, query) for fragment in exact_article_matches]
+
+    queryset = _candidate_queryset(queryset, query)
 
     hits = []
     for fragment in queryset:
