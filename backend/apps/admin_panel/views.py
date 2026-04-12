@@ -32,7 +32,10 @@ class BaseRunJobView(APIView):
             job_type=self.job_type,
             status=IngestionJob.Status.QUEUED,
             notes=serializer.validated_data.get("notes", ""),
-            payload_json={"document_ids": serializer.validated_data.get("document_ids", [])},
+            payload_json={
+                "document_ids": serializer.validated_data.get("document_ids", []),
+                "official_source_slugs": serializer.validated_data.get("official_source_slugs", []),
+            },
         )
 
         if settings.ASYNC_ADMIN_JOBS:

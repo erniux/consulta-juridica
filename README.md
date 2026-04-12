@@ -18,6 +18,7 @@ El repositorio ya incluye:
 - historial y detalle de consultas
 - seeds demo con fuentes, documentos y usuarios
 - jobs de ingesta e indexacion
+- sincronizacion inicial de documentos reales LFT y LSS desde PDF oficial
 - Docker Compose para desarrollo local
 
 ## Estructura
@@ -100,6 +101,7 @@ Comandos utiles:
 docker compose logs -f backend
 docker compose logs -f worker
 docker compose exec backend python manage.py seed_demo_data
+docker compose exec backend python manage.py sync_official_legal_documents --sources lft lss
 docker compose exec backend python manage.py test apps.accounts apps.consultations
 docker compose down
 ```
@@ -113,8 +115,31 @@ cd backend
 set DB_ENGINE=sqlite
 python manage.py migrate
 python manage.py seed_demo_data
+python manage.py sync_official_legal_documents --sources lft lss
 python manage.py runserver
 ```
+
+## Ingesta real inicial
+
+Ya existe una primera version de ingesta real para leyes federales oficiales:
+
+- `lft`: Ley Federal del Trabajo
+- `lss`: Ley del Seguro Social
+
+La sincronizacion descarga el PDF oficial de Camara de Diputados, extrae el texto, normaliza encabezados repetidos, guarda el documento completo y vuelve a fragmentarlo por articulos.
+
+Comando:
+
+```bash
+cd backend
+python manage.py sync_official_legal_documents --sources lft lss
+```
+
+Notas:
+
+- este comando reemplaza el contenido demo de LFT/LSS por texto oficial real cuando la version coincide
+- guarda metadatos de descarga en `metadata_json`
+- jurisprudencia y DOF todavia quedan como siguiente fase
 
 ### Frontend
 
@@ -175,6 +200,15 @@ Se crean con `seed_demo_data`:
 - `POST /api/admin/ingestion/run/`
 - `POST /api/admin/indexing/run/`
 - `GET /api/admin/jobs/`
+
+Para sincronizacion oficial por API usando el job de ingesta:
+
+```json
+{
+  "official_source_slugs": ["lft", "lss"],
+  "notes": "Sincronizacion oficial inicial"
+}
+```
 
 ## Despliegue en Render + Neon
 

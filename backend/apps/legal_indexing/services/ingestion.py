@@ -12,20 +12,33 @@ from .indexing import index_fragments
 
 
 ARTICLE_PATTERN = re.compile(
-    r"(^\s*Articulo\s+\d+[A-Za-z-]*\.?.*?)(?=^\s*Articulo\s+\d+[A-Za-z-]*\.?|\Z)",
+    r"(^\s*Art(?:í|i)culo\s+\d+[A-Za-z-]*\.?.*?)(?=^\s*Art(?:í|i)culo\s+\d+[A-Za-z-]*\.?|\Z)",
     re.IGNORECASE | re.DOTALL | re.MULTILINE,
 )
 
 
 def _split_document(raw_text: str) -> list[tuple[str, str]]:
-    normalized_source = raw_text.replace("Artículo", "Articulo")
+    normalized_source = raw_text.replace("ArtÃ­culo", "Artículo")
     matches = ARTICLE_PATTERN.findall(normalized_source)
     if matches:
         chunks = []
         for match in matches:
             lines = [line.strip() for line in match.splitlines() if line.strip()]
-            title = lines[0].rstrip(".")
-            content = "\n".join(lines[1:]).strip() or title
+            first_line = lines[0]
+            article_header_match = re.match(
+                r"^(Art(?:í|i)culo\s+\d+[A-Za-z-]*)(?:\.\s*(.*))?$",
+                first_line,
+                re.IGNORECASE,
+            )
+            if article_header_match:
+                title = article_header_match.group(1).rstrip(".")
+                inline_content = (article_header_match.group(2) or "").strip()
+                content_lines = [inline_content] if inline_content else []
+                content_lines.extend(lines[1:])
+                content = "\n".join(content_lines).strip() or title
+            else:
+                title = first_line.rstrip(".")
+                content = "\n".join(lines[1:]).strip() or title
             chunks.append((title, content))
         return chunks
 
@@ -39,7 +52,7 @@ def parse_document_into_fragments(document: LegalDocument):
     created_fragments = []
     for index, (title, content) in enumerate(_split_document(document.raw_text), start=1):
         article_number = None
-        article_match = re.search(r"Articulo\s+(\d+[A-Za-z-]*)", title, re.IGNORECASE)
+        article_match = re.search(r"Art(?:í|i)culo\s+(\d+[A-Za-z-]*)", title, re.IGNORECASE)
         if article_match:
             article_number = article_match.group(1)
 
@@ -69,6 +82,19 @@ def run_ingestion_job(job: IngestionJob):
     job.save(update_fields=["status", "started_at", "error_message", "updated_at"])
 
     try:
+        official_source_slugs = (
+            job.payload_json.get("official_source_slugs", []) if job.payload_json else []
+        )
+        if official_source_slugs:
+            from .official_sync import sync_official_documents
+
+            synced_documents = sync_official_documents(official_source_slugs)
+            job.status = IngestionJob.Status.COMPLETED
+            job.notes = (
+                (job.notes or "") + f"\nSynced official documents: {len(synced_documents)}"
+            ).strip()
+            return job
+
         queryset = LegalDocument.objects.select_related("source")
         document_ids = job.payload_json.get("document_ids", []) if job.payload_json else []
         if document_ids:

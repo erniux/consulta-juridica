@@ -10,7 +10,19 @@ class JobRunSerializer(serializers.Serializer):
         required=False,
         allow_empty=False,
     )
+    official_source_slugs = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        allow_empty=False,
+    )
     notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs.get("document_ids") and attrs.get("official_source_slugs"):
+            raise serializers.ValidationError(
+                "Use document_ids or official_source_slugs, but not both in the same job."
+            )
+        return attrs
 
 
 class JobSerializer(serializers.ModelSerializer):
