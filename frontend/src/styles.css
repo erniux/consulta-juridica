@@ -361,6 +361,11 @@ button:disabled {
   margin-top: 0.35rem;
 }
 
+.citation-link {
+  margin-top: -0.15rem;
+  font-weight: 600;
+}
+
 .attempt-list {
   display: flex;
   flex-direction: column;

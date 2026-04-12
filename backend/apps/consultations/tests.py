@@ -52,17 +52,17 @@ class ConsultationWorkflowTests(TestCase):
         )
         self.jurisprudence_document = LegalDocument.objects.create(
             source=self.jurisprudence_source,
-            title="Tesis sobre renuncia y riesgo de trabajo",
-            short_name="SJF",
+            title="Renuncia laboral con huella y firma: eficacia probatoria",
+            short_name="2a./J. 6/2021",
             document_type=LegalDocument.DocumentType.THESIS,
-            subject_area=LegalDocument.SubjectArea.OCCUPATIONAL_RISK,
-            version_label="tesis-demo-v1",
-            digital_registry_number="2026001",
-            official_url=self.jurisprudence_source.official_url,
+            subject_area=LegalDocument.SubjectArea.LABOR,
+            version_label="registro-2023053",
+            digital_registry_number="2023053",
+            official_url="https://sjf2.scjn.gob.mx/detalle/tesis/2023053",
             raw_text=(
-                "Rubro. Renuncia firmada bajo presion despues de un accidente de trabajo.\n\n"
-                "Tesis. Cuando la persona trabajadora alega renuncia bajo presion y acredita "
-                "un riesgo de trabajo, el juzgador debe valorar integralmente el contexto."
+                "Rubro. Renuncia laboral con huella dactilar y firma autografa.\n\n"
+                "Criterio. Basta acreditar la veracidad de uno de esos elementos para dar "
+                "eficacia probatoria a la renuncia en terminos del articulo 802 de la LFT."
             ),
         )
         parse_document_into_fragments(self.jurisprudence_document)
@@ -90,7 +90,7 @@ class ConsultationWorkflowTests(TestCase):
         consultation.refresh_from_db()
 
         self.assertEqual(consultation.status, Consultation.Status.COMPLETED)
-        self.assertIn("registro digital 2026001", consultation.final_answer)
+        self.assertIn("registro digital 2023053", consultation.final_answer)
 
     @patch("apps.consultations.services.workflow.generate_consultation_answer")
     def test_process_consultation_marks_failed_when_unexpected_error_happens(self, mocked_generate):

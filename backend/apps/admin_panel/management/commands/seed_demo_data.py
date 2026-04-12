@@ -89,20 +89,22 @@ Articulo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a las pre
     },
     {
         "source_slug": "sjf",
-        "title": "Tesis sobre renuncia y riesgo de trabajo",
-        "short_name": "SJF",
+        "title": "Renuncia laboral con huella y firma: eficacia probatoria",
+        "short_name": "2a./J. 6/2021",
         "document_type": LegalDocument.DocumentType.THESIS,
-        "subject_area": LegalDocument.SubjectArea.GENERAL,
-        "publication_date": date(2024, 9, 1),
-        "effective_date": date(2024, 9, 1),
-        "last_reform_date": date(2024, 9, 1),
-        "version_label": "tesis-demo-v1",
-        "digital_registry_number": "2026001",
-        "official_url": "https://sjf2.scjn.gob.mx/detalle/tesis/2026001",
+        "subject_area": LegalDocument.SubjectArea.LABOR,
+        "publication_date": date(2021, 4, 30),
+        "effective_date": date(2021, 5, 3),
+        "last_reform_date": date(2021, 4, 30),
+        "version_label": "registro-2023053",
+        "digital_registry_number": "2023053",
+        "official_url": "https://sjf2.scjn.gob.mx/detalle/tesis/2023053",
         "raw_text": """
-Rubro. Renuncia firmada bajo presion. Cuando una persona trabajadora afirma que la renuncia fue obtenida bajo presion o despues de un accidente de trabajo, el juzgador debe analizar integralmente el contexto probatorio.
+Rubro. Renuncia laboral con huella dactilar y firma autografa. Si el escrito contiene ambos elementos de suscripcion, basta acreditar la veracidad de uno para atribuir su autoria a la persona trabajadora.
 
-Tesis. Riesgo de trabajo y proteccion reforzada. La incapacidad emitida por institucion de seguridad social y la continuidad del tratamiento medico son indicios relevantes para valorar la situacion laboral de la persona trabajadora.
+Criterio. Conforme al articulo 802 de la Ley Federal del Trabajo vigente hasta el 30 de noviembre de 2012, una renuncia exhibida en juicio conserva eficacia probatoria plena cuando se demuestra la autenticidad de la firma o de la huella dactilar, aunque no se pruebe la del otro elemento.
+
+Contexto. El criterio proviene de una contradiccion de tesis resuelta por la Segunda Sala de la Suprema Corte de Justicia de la Nacion y es util para analizar controversias sobre renuncias laborales ofrecidas como documentales privadas.
 """.strip(),
     },
 ]
@@ -142,6 +144,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.seed_users()
         sources = self.seed_sources()
+        self.cleanup_legacy_seed_documents(sources)
         self.seed_documents(sources)
         self.stdout.write(self.style.SUCCESS("Seed data ready."))
 
@@ -210,3 +213,16 @@ class Command(BaseCommand):
             )
             parse_document_into_fragments(document)
             self.stdout.write(f"Document ready: {document.title}")
+
+    def cleanup_legacy_seed_documents(self, sources):
+        sjf_source = sources.get("sjf")
+        if not sjf_source:
+            return
+
+        deleted_count, _ = LegalDocument.objects.filter(
+            source=sjf_source,
+            version_label="tesis-demo-v1",
+            digital_registry_number="2026001",
+        ).delete()
+        if deleted_count:
+            self.stdout.write("Removed legacy SJF demo thesis with registro digital 2026001")

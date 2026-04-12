@@ -26,28 +26,28 @@ class LegalDocumentApiTests(APITestCase):
         )
         self.document = LegalDocument.objects.create(
             source=source,
-            title="Tesis aislada sobre riesgo de trabajo",
-            short_name="Tesis RT",
+            title="Renuncia laboral con huella y firma: eficacia probatoria",
+            short_name="2a./J. 6/2021",
             document_type=LegalDocument.DocumentType.THESIS,
-            subject_area=LegalDocument.SubjectArea.OCCUPATIONAL_RISK,
-            version_label="test-v1",
-            digital_registry_number="2026001",
+            subject_area=LegalDocument.SubjectArea.LABOR,
+            version_label="registro-2023053",
+            digital_registry_number="2023053",
             official_url=source.official_url,
-            raw_text="Rubro. Texto de prueba.",
+            raw_text="Rubro. Texto de prueba sobre renuncia laboral.",
         )
 
     def test_document_list_includes_digital_registry_number(self):
         response = self.client.get("/api/documents/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["results"][0]["digital_registry_number"], "2026001")
+        self.assertEqual(response.data["results"][0]["digital_registry_number"], "2023053")
         self.assertEqual(
             response.data["results"][0]["official_url"],
-            "https://sjf2.scjn.gob.mx/detalle/tesis/2026001",
+            "https://sjf2.scjn.gob.mx/detalle/tesis/2023053",
         )
 
     def test_document_list_can_search_by_digital_registry_number(self):
-        response = self.client.get("/api/documents/", {"q": "2026001"})
+        response = self.client.get("/api/documents/", {"q": "2023053"})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)

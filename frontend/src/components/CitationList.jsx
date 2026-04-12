@@ -11,6 +11,18 @@ export function CitationList({ citations }) {
           <p className="muted">
             {citation.document_title} | {citation.source_name}
           </p>
+          {citation.official_url ? (
+            <a
+              className="text-link citation-link"
+              href={citation.official_url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {citation.source_name?.includes("Semanario Judicial")
+                ? "Abrir documento en el SJF"
+                : "Abrir documento oficial"}
+            </a>
+          ) : null}
           {citation.digital_registry_number ? (
             <p className="muted">
               Registro digital:{" "}
