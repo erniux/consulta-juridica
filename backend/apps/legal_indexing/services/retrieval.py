@@ -91,7 +91,7 @@ def retrieve_fragments(query: str, limit: int | None = None, document_type: str 
     queryset = (
         DocumentFragment.objects.select_related("legal_document", "legal_document__source")
         .prefetch_related("embedding", "topic_relations__topic")
-        .all()
+        .filter(legal_document__is_current=True)
     )
 
     if document_type:

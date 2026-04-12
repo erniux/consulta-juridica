@@ -183,6 +183,19 @@ class RetrievalRankingTests(TestCase):
             ),
         )
         parse_document_into_fragments(self.lft_document)
+        self.old_lss_demo_document = LegalDocument.objects.create(
+            source=self.lss_source,
+            title="Ley del Seguro Social",
+            short_name="LSS",
+            document_type=LegalDocument.DocumentType.LAW,
+            subject_area=LegalDocument.SubjectArea.SOCIAL_SECURITY,
+            version_label="demo-lss-v1",
+            official_url=self.lss_source.official_url,
+            raw_text="Artículo 58. El asegurado que sufra un riesgo de trabajo tiene derecho a prestaciones.",
+            metadata_json={"seeded": True, "source_kind": "demo_seed"},
+            is_current=False,
+        )
+        parse_document_into_fragments(self.old_lss_demo_document)
 
     def test_retrieve_fragments_prioritizes_exact_article_and_source_match(self):
         hits = retrieve_fragments(
@@ -193,3 +206,11 @@ class RetrievalRankingTests(TestCase):
         self.assertGreater(len(hits), 0)
         self.assertEqual(hits[0].fragment.legal_document.short_name, "LSS")
         self.assertEqual(hits[0].fragment.article_number, "15")
+
+    def test_retrieve_fragments_ignores_non_current_documents(self):
+        hits = retrieve_fragments(
+            "Que dice el articulo 58 de la Ley del Seguro Social?",
+            limit=5,
+        )
+
+        self.assertTrue(all(hit.fragment.legal_document.is_current for hit in hits))

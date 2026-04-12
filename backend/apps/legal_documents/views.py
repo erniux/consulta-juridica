@@ -9,7 +9,7 @@ class LegalDocumentListView(generics.ListAPIView):
     serializer_class = LegalDocumentListSerializer
 
     def get_queryset(self):
-        queryset = LegalDocument.objects.select_related("source").annotate(
+        queryset = LegalDocument.objects.select_related("source").filter(is_current=True).annotate(
             fragment_count=Count("fragments")
         )
         document_type = self.request.query_params.get("document_type")

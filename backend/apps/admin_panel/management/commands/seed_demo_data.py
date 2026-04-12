@@ -54,7 +54,7 @@ SEED_DOCUMENTS = [
         "publication_date": date(1970, 4, 1),
         "effective_date": date(1970, 5, 1),
         "last_reform_date": date(2026, 1, 15),
-        "version_label": "vigente-2026-01-15",
+        "version_label": "demo-lft-v1",
         "raw_text": """
 Articulo 47. Son causas de rescision de la relacion de trabajo, sin responsabilidad para el patron, las faltas de probidad u honradez, actos de violencia, amenazas, injurias o malos tratamientos del trabajador.
 
@@ -76,7 +76,7 @@ Articulo 487. Los trabajadores que sufran un riesgo de trabajo tendran derecho a
         "publication_date": date(1995, 12, 21),
         "effective_date": date(1997, 7, 1),
         "last_reform_date": date(2026, 1, 15),
-        "version_label": "vigente-2026-01-15",
+        "version_label": "demo-lss-v1",
         "raw_text": """
 Articulo 41. Riesgos de trabajo son los accidentes y enfermedades a que estan expuestos los trabajadores en ejercicio o con motivo del trabajo.
 
@@ -193,6 +193,21 @@ class Command(BaseCommand):
     def seed_documents(self, sources):
         for item in SEED_DOCUMENTS:
             source = sources[item["source_slug"]]
+            if self._has_official_current_document(source, item["title"]):
+                deleted_count, _ = LegalDocument.objects.filter(
+                    source=source,
+                    title=item["title"],
+                    metadata_json__seeded=True,
+                ).delete()
+                if deleted_count:
+                    self.stdout.write(
+                        f"Removed demo documents for {item['title']} because an official current version exists."
+                    )
+                self.stdout.write(
+                    f"Skipped demo seed for {item['title']} because an official current version exists."
+                )
+                continue
+
             document, _ = LegalDocument.objects.update_or_create(
                 source=source,
                 title=item["title"],
@@ -207,7 +222,7 @@ class Command(BaseCommand):
                     "official_url": item.get("official_url") or source.official_url,
                     "digital_registry_number": item.get("digital_registry_number", ""),
                     "raw_text": item["raw_text"],
-                    "metadata_json": {"seeded": True},
+                    "metadata_json": {"seeded": True, "source_kind": "demo_seed"},
                     "is_current": True,
                 },
             )
@@ -217,12 +232,37 @@ class Command(BaseCommand):
     def cleanup_legacy_seed_documents(self, sources):
         sjf_source = sources.get("sjf")
         if not sjf_source:
-            return
+            sjf_source = None
 
-        deleted_count, _ = LegalDocument.objects.filter(
-            source=sjf_source,
-            version_label="tesis-demo-v1",
-            digital_registry_number="2026001",
-        ).delete()
-        if deleted_count:
-            self.stdout.write("Removed legacy SJF demo thesis with registro digital 2026001")
+        if sjf_source:
+            deleted_count, _ = LegalDocument.objects.filter(
+                source=sjf_source,
+                version_label="tesis-demo-v1",
+                digital_registry_number="2026001",
+            ).delete()
+            if deleted_count:
+                self.stdout.write("Removed legacy SJF demo thesis with registro digital 2026001")
+
+        for slug in ("lft", "lss"):
+            source = sources.get(slug)
+            if not source:
+                continue
+            deleted_count, _ = LegalDocument.objects.filter(
+                source=source,
+                version_label="vigente-2026-01-15",
+                metadata_json__seeded=True,
+            ).delete()
+            if deleted_count:
+                self.stdout.write(
+                    f"Removed legacy demo document for {source.name} with colliding official version label."
+                )
+
+    def _has_official_current_document(self, source, title: str) -> bool:
+        if source.slug not in {"lft", "lss"}:
+            return False
+        return LegalDocument.objects.filter(
+            source=source,
+            title=title,
+            is_current=True,
+            metadata_json__source_kind="official_pdf",
+        ).exists()
