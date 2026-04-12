@@ -1,5 +1,6 @@
 from datetime import date
 from unittest.mock import patch
+from urllib.error import HTTPError
 
 from django.test import SimpleTestCase, TestCase
 
@@ -247,6 +248,31 @@ class JurisprudenceSyncTests(TestCase):
         self.assertGreater(len(args[0]), 1)
         self.assertEqual(kwargs["maximum_rows_per_query"], 7)
         self.assertTrue(any("riesgo de trabajo" in query for query in args[0]))
+
+    @patch("apps.legal_indexing.services.jurisprudence_sync._post_soap_request")
+    def test_sync_jurisprudence_by_queries_skips_failed_sjf_queries(self, mocked_post):
+        mocked_post.side_effect = [
+            HTTPError(
+                url="https://sjf.scjn.gob.mx/SJFSem/Servicios/wsResultados.asmx",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
+            ),
+            self.SEARCH_XML,
+            self.DETAIL_XML,
+        ]
+
+        documents = sync_jurisprudence_by_queries(
+            [
+                "consulta muy amplia que falla",
+                "riesgo de trabajo indemnizacion patron",
+            ],
+            maximum_rows_per_query=5,
+        )
+
+        self.assertEqual(len(documents), 1)
+        self.assertEqual(documents[0].digital_registry_number, "2029196")
 
 
 class RetrievalRankingTests(TestCase):

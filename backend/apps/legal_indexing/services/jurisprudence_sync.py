@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+import logging
 from typing import Iterable
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -25,6 +27,7 @@ SOAP_DETAIL_ACTION = "http://tempuri.org/ObtenerDetalle"
 
 SOAP_RESULTS_NS = {"soap": "http://schemas.xmlsoap.org/soap/envelope/", "svc": "http://sjf.scjn.gob.mx/"}
 SOAP_DETAIL_NS = {"soap": "http://schemas.xmlsoap.org/soap/envelope/", "svc": "http://tempuri.org/"}
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -377,12 +380,29 @@ def sync_jurisprudence_by_queries(
     for expression in expressions:
         if not expression:
             continue
-        search_results = search_jurisprudence(expression, maximum_rows=maximum_rows_per_query)
+        try:
+            search_results = search_jurisprudence(expression, maximum_rows=maximum_rows_per_query)
+        except (HTTPError, URLError, ET.ParseError) as exc:
+            logger.warning(
+                "Jurisprudence search skipped for expression '%s': %s",
+                expression,
+                exc,
+            )
+            continue
         for result in search_results:
             if result.ius in seen_ius:
                 continue
             seen_ius.add(result.ius)
-            detail = get_jurisprudence_detail(result.ius)
+            try:
+                detail = get_jurisprudence_detail(result.ius)
+            except (HTTPError, URLError, ET.ParseError) as exc:
+                logger.warning(
+                    "Jurisprudence detail skipped for ius '%s' and expression '%s': %s",
+                    result.ius,
+                    expression,
+                    exc,
+                )
+                continue
             if not detail:
                 continue
             synced_documents.append(
