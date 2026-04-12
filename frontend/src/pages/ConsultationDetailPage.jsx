@@ -17,20 +17,40 @@ export function ConsultationDetailPage() {
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
 
-  useEffect(() => {
-    const loadConsultation = async () => {
-      try {
-        const payload = await consultationsService.detail(id);
-        setConsultation(payload);
-      } catch (requestError) {
+  const loadConsultation = async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
+    try {
+      const payload = await consultationsService.detail(id);
+      setConsultation(payload);
+      setLoadError("");
+    } catch (requestError) {
+      if (!silent) {
         setLoadError("No fue posible cargar el detalle de la consulta.");
-      } finally {
+      }
+    } finally {
+      if (!silent) {
         setLoading(false);
       }
-    };
+    }
+  };
 
+  useEffect(() => {
     loadConsultation();
   }, [id]);
+
+  useEffect(() => {
+    if (!consultation || !["queued", "processing"].includes(consultation.status)) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      loadConsultation({ silent: true });
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
+  }, [consultation, id]);
 
   if (loading) {
     return <LoadingBlock label="Cargando detalle..." />;
@@ -75,6 +95,12 @@ export function ConsultationDetailPage() {
           </div>
           <p className="muted">Creada el {formatDate(consultation.created_at)}</p>
           <p>{consultation.prompt}</p>
+          {["queued", "processing"].includes(consultation.status) ? (
+            <p className="muted">
+              Investigando normativa y jurisprudencia relevante. Esta vista se actualiza
+              automaticamente.
+            </p>
+          ) : null}
         </header>
 
         <section className="stack">

@@ -6,6 +6,7 @@ from common.text import normalize_text
 from apps.citations.models import ConsultationCitation
 from apps.legal_documents.models import LegalDocument
 from apps.legal_indexing.models import DocumentFragment
+from apps.legal_indexing.services.jurisprudence_sync import sync_jurisprudence_for_prompt
 from apps.legal_indexing.services.retrieval import retrieve_fragments
 from apps.llm_orchestrator.services.classifiers import (
     classify_matter,
@@ -100,6 +101,28 @@ def _mark_consultation_failed(consultation: Consultation, error_message: str):
     return consultation
 
 
+def _sync_jurisprudence_for_consultation(consultation: Consultation) -> dict:
+    sync_metadata = {
+        "enabled": settings.AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION,
+        "attempted": False,
+        "synced_documents": 0,
+        "error": "",
+    }
+    if not settings.AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION:
+        return sync_metadata
+
+    sync_metadata["attempted"] = True
+    try:
+        synced_documents = sync_jurisprudence_for_prompt(
+            consultation.prompt,
+            maximum_rows_per_query=settings.AUTO_SYNC_JURISPRUDENCE_MAX_RESULTS,
+        )
+        sync_metadata["synced_documents"] = len(synced_documents)
+    except Exception as exc:  # pragma: no cover - defensive path for network/runtime failures.
+        sync_metadata["error"] = str(exc)
+    return sync_metadata
+
+
 def process_consultation(consultation: Consultation):
     consultation.status = Consultation.Status.PROCESSING
     consultation.normalized_prompt = normalize_text(consultation.prompt)
@@ -119,6 +142,8 @@ def process_consultation(consultation: Consultation):
 
     try:
         with transaction.atomic():
+            jurisprudence_sync = _sync_jurisprudence_for_consultation(consultation)
+
             if not DocumentFragment.objects.exists():
                 return _mark_consultation_failed(
                     consultation,
@@ -212,6 +237,7 @@ def process_consultation(consultation: Consultation):
                 "provider": settings.LLM_PROVIDER,
                 "expanded_queries": queries,
                 "jurisprudence_queries": jurisprudence_queries,
+                "jurisprudence_sync": jurisprudence_sync,
                 "prompt_template": provider_answer.prompt_template,
                 "citation_count": len(provider_answer.citations),
             }

@@ -8,6 +8,12 @@ from apps.legal_indexing.models import IngestionJob
 from apps.legal_sources.models import Source
 
 from .services.ingestion import _split_document, parse_document_into_fragments
+from .services.jurisprudence_sync import (
+    _parse_detail,
+    _parse_search_results,
+    sync_jurisprudence_by_queries,
+    sync_jurisprudence_for_prompt,
+)
 from .services.official_sync import (
     OfficialPdfPayload,
     build_version_label,
@@ -149,6 +155,98 @@ class OfficialSyncTests(TestCase):
 
         mocked_sync.assert_called_once_with(["lft", "lss"])
         self.assertEqual(job.status, IngestionJob.Status.COMPLETED)
+
+
+class JurisprudenceSyncTests(TestCase):
+    SEARCH_XML = b"""<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ObtenerResultadosResponse xmlns="http://sjf.scjn.gob.mx/">
+      <ObtenerResultadosResult>
+        <Resultados>
+          <CamposComunesBE>
+            <Id>2029196</Id>
+            <Rubro>INCREMENTO DE LA INDEMNIZACION POR RIESGO DE TRABAJO.</Rubro>
+            <Localizacion>Registro digital 2029196</Localizacion>
+            <TipoTesis>Jurisprudencia</TipoTesis>
+            <Tesis>2a./J. 123/2024</Tesis>
+          </CamposComunesBE>
+        </Resultados>
+      </ObtenerResultadosResult>
+    </ObtenerResultadosResponse>
+  </soap:Body>
+</soap:Envelope>"""
+
+    DETAIL_XML = b"""<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <ObtenerDetalleResponse xmlns="http://tempuri.org/">
+      <ObtenerDetalleResult>
+        <Tesis>
+          <Ius>2029196</Ius>
+          <Tesis>2a./J. 123/2024</Tesis>
+          <Rubro>INCREMENTO DE LA INDEMNIZACION POR RIESGO DE TRABAJO.</Rubro>
+          <TipoTesis>Jurisprudencia</TipoTesis>
+          <Instancia>Segunda Sala</Instancia>
+          <Localizacion>Registro digital: 2029196</Localizacion>
+          <FechaPublicacion>02/08/2024</FechaPublicacion>
+          <Texto>Si un accidente de trabajo produce lesiones permanentes, la persona trabajadora puede reclamar indemnizacion adicional.</Texto>
+          <Precedentes>Accidente de trabajo; incapacidad permanente parcial.</Precedentes>
+          <Fuente>Semanario Judicial de la Federacion.</Fuente>
+          <MateriasTesis>Laboral, Seguridad Social</MateriasTesis>
+          <Referencia>Riesgo de trabajo</Referencia>
+          <Tribunal>Segunda Sala</Tribunal>
+          <RutaPdf>https://www.scjn.gob.mx/sites/default/files/comunicacion_digital/2024-08/tesis_publicacion_semanal_02082024.pdf</RutaPdf>
+        </Tesis>
+      </ObtenerDetalleResult>
+    </ObtenerDetalleResponse>
+  </soap:Body>
+</soap:Envelope>"""
+
+    def test_parse_search_results_reads_real_sjf_payload(self):
+        results = _parse_search_results(self.SEARCH_XML)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].ius, "2029196")
+        self.assertEqual(results[0].tesis_clave, "2a./J. 123/2024")
+
+    def test_parse_detail_reads_real_sjf_payload(self):
+        detail = _parse_detail(self.DETAIL_XML)
+
+        self.assertIsNotNone(detail)
+        self.assertEqual(detail.ius, "2029196")
+        self.assertEqual(detail.fecha_publicacion, date(2024, 8, 2))
+        self.assertIn("indemnizacion adicional", detail.texto)
+
+    @patch("apps.legal_indexing.services.jurisprudence_sync._post_soap_request")
+    def test_sync_jurisprudence_by_queries_upserts_real_documents(self, mocked_post):
+        mocked_post.side_effect = [self.SEARCH_XML, self.DETAIL_XML]
+
+        documents = sync_jurisprudence_by_queries(
+            ["riesgo de trabajo indemnizacion patron"],
+            maximum_rows_per_query=5,
+        )
+
+        self.assertEqual(len(documents), 1)
+        document = documents[0]
+        self.assertEqual(document.digital_registry_number, "2029196")
+        self.assertEqual(document.metadata_json["source_kind"], "sjf_webservice")
+        self.assertEqual(document.metadata_json["search_expression"], "riesgo de trabajo indemnizacion patron")
+        self.assertGreater(document.fragments.count(), 0)
+
+    @patch("apps.legal_indexing.services.jurisprudence_sync.sync_jurisprudence_by_queries")
+    def test_sync_jurisprudence_for_prompt_generates_queries_automatically(self, mocked_sync):
+        mocked_sync.return_value = []
+
+        sync_jurisprudence_for_prompt(
+            "Obligaciones patronales por accidente de trabajo con perdida de unos dedos de la mano.",
+            maximum_rows_per_query=7,
+        )
+
+        args, kwargs = mocked_sync.call_args
+        self.assertGreater(len(args[0]), 1)
+        self.assertEqual(kwargs["maximum_rows_per_query"], 7)
+        self.assertTrue(any("riesgo de trabajo" in query for query in args[0]))
 
 
 class RetrievalRankingTests(TestCase):

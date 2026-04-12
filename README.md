@@ -76,6 +76,8 @@ Variables backend relevantes:
 - `OPENAI_API_KEY`
 - `ASYNC_CONSULTATIONS`
 - `ASYNC_ADMIN_JOBS`
+- `AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION`
+- `AUTO_SYNC_JURISPRUDENCE_MAX_RESULTS`
 - `AUTO_RUN_MIGRATIONS`
 - `BOOTSTRAP_LEGAL_DATA`
 
@@ -102,6 +104,7 @@ docker compose logs -f backend
 docker compose logs -f worker
 docker compose exec backend python manage.py seed_demo_data
 docker compose exec backend python manage.py sync_official_legal_documents --sources lft lss
+docker compose exec backend python manage.py sync_official_jurisprudence --prompt "despido embarazo trabajadora"
 docker compose exec backend python manage.py test apps.accounts apps.consultations
 docker compose down
 ```
@@ -139,7 +142,62 @@ Notas:
 
 - este comando reemplaza el contenido demo de LFT/LSS por texto oficial real cuando la version coincide
 - guarda metadatos de descarga en `metadata_json`
-- jurisprudencia y DOF todavia quedan como siguiente fase
+- el siguiente paso natural es ampliar la cobertura con mas jurisprudencia, DOF y automatizacion recurrente
+
+## Ingesta real de jurisprudencia
+
+Ya existe una primera version de ingesta real de jurisprudencia desde servicios oficiales del SJF/SCJN.
+
+Opciones disponibles:
+
+1. desde una o varias queries juridicas concretas
+2. desde un prompt libre del caso para que el sistema genere las queries jurisprudenciales automaticamente
+
+Comandos:
+
+```bash
+cd backend
+python manage.py sync_official_jurisprudence --query "riesgo de trabajo amputacion dedos mano indemnizacion"
+python manage.py sync_official_jurisprudence --prompt "Despidieron a una mujer por estar embarazada" --max-results 8
+```
+
+La ingesta:
+
+- consulta el web service oficial del SJF
+- recupera registros digitales, rubros y claves de tesis
+- obtiene el detalle completo de cada tesis
+- guarda la tesis como `LegalDocument`
+- fragmenta e indexa el contenido para que entre al flujo RAG
+
+Los documentos ingestados quedan marcados con:
+
+- `metadata_json.source_kind = "sjf_webservice"`
+
+Tambien puedes dispararlo por API usando el job de ingesta:
+
+```json
+{
+  "jurisprudence_prompt": "Obligaciones patronales por accidente de trabajo con perdida de dedos de la mano",
+  "jurisprudence_max_results": 8,
+  "notes": "Investigacion jurisprudencial automatica"
+}
+```
+
+## Investigacion jurisprudencial automatica en consultas
+
+El sistema ya puede intentar sincronizar jurisprudencia real del SJF antes de responder una consulta.
+
+Variables recomendadas:
+
+- `ASYNC_CONSULTATIONS=true`
+- `AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION=true`
+- `AUTO_SYNC_JURISPRUDENCE_MAX_RESULTS=5`
+
+Recomendacion operativa:
+
+- activa esta opcion cuando ya tengas worker de Celery
+- deja `ASYNC_CONSULTATIONS=true` para evitar timeouts en el request web
+- el detalle de la consulta se actualiza automaticamente mientras el caso sigue en `queued` o `processing`
 
 ### Frontend
 

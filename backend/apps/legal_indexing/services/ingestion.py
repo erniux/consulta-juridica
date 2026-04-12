@@ -112,6 +112,37 @@ def run_ingestion_job(job: IngestionJob):
             ).strip()
             return job
 
+        jurisprudence_queries = (
+            job.payload_json.get("jurisprudence_queries", []) if job.payload_json else []
+        )
+        jurisprudence_prompt = (
+            job.payload_json.get("jurisprudence_prompt", "") if job.payload_json else ""
+        )
+        jurisprudence_max_results = (
+            job.payload_json.get("jurisprudence_max_results", 10) if job.payload_json else 10
+        )
+        if jurisprudence_queries or jurisprudence_prompt:
+            from .jurisprudence_sync import (
+                sync_jurisprudence_by_queries,
+                sync_jurisprudence_for_prompt,
+            )
+
+            if jurisprudence_prompt:
+                synced_documents = sync_jurisprudence_for_prompt(
+                    jurisprudence_prompt,
+                    maximum_rows_per_query=jurisprudence_max_results,
+                )
+            else:
+                synced_documents = sync_jurisprudence_by_queries(
+                    jurisprudence_queries,
+                    maximum_rows_per_query=jurisprudence_max_results,
+                )
+            job.status = IngestionJob.Status.COMPLETED
+            job.notes = (
+                (job.notes or "") + f"\nSynced jurisprudence documents: {len(synced_documents)}"
+            ).strip()
+            return job
+
         queryset = LegalDocument.objects.select_related("source")
         document_ids = job.payload_json.get("document_ids", []) if job.payload_json else []
         if document_ids:

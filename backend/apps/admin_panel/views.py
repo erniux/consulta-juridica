@@ -35,6 +35,12 @@ class BaseRunJobView(APIView):
             payload_json={
                 "document_ids": serializer.validated_data.get("document_ids", []),
                 "official_source_slugs": serializer.validated_data.get("official_source_slugs", []),
+                "jurisprudence_queries": serializer.validated_data.get("jurisprudence_queries", []),
+                "jurisprudence_prompt": serializer.validated_data.get("jurisprudence_prompt", ""),
+                "jurisprudence_max_results": serializer.validated_data.get(
+                    "jurisprudence_max_results",
+                    10,
+                ),
             },
         )
 

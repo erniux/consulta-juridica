@@ -135,6 +135,62 @@ class ConsultationWorkflowTests(TestCase):
             ).exists()
         )
 
+    @override_settings(
+        LLM_PROVIDER="mock",
+        DEFAULT_RETRIEVAL_LIMIT=4,
+        AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION=True,
+        AUTO_SYNC_JURISPRUDENCE_MAX_RESULTS=3,
+    )
+    @patch("apps.consultations.services.workflow.sync_jurisprudence_for_prompt")
+    def test_process_consultation_triggers_automatic_jurisprudence_sync(
+        self,
+        mocked_sync,
+    ):
+        mocked_sync.return_value = [self.occupational_risk_jurisprudence_document]
+        consultation = Consultation.objects.create(
+            user=self.user,
+            prompt="Obligaciones patronales por accidente de trabajo con perdida de dedos.",
+        )
+
+        process_consultation(consultation)
+        consultation.refresh_from_db()
+
+        mocked_sync.assert_called_once_with(
+            consultation.prompt,
+            maximum_rows_per_query=3,
+        )
+        self.assertEqual(consultation.status, Consultation.Status.COMPLETED)
+        self.assertEqual(
+            consultation.answer_metadata_json["jurisprudence_sync"]["synced_documents"],
+            1,
+        )
+
+    @override_settings(
+        LLM_PROVIDER="mock",
+        DEFAULT_RETRIEVAL_LIMIT=4,
+        AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION=True,
+        AUTO_SYNC_JURISPRUDENCE_MAX_RESULTS=2,
+    )
+    @patch("apps.consultations.services.workflow.sync_jurisprudence_for_prompt")
+    def test_process_consultation_keeps_running_if_jurisprudence_sync_fails(
+        self,
+        mocked_sync,
+    ):
+        mocked_sync.side_effect = RuntimeError("sjf unavailable")
+        consultation = Consultation.objects.create(
+            user=self.user,
+            prompt="Tuve un accidente de trabajo y quiero saber mis derechos.",
+        )
+
+        process_consultation(consultation)
+        consultation.refresh_from_db()
+
+        self.assertEqual(consultation.status, Consultation.Status.COMPLETED)
+        self.assertEqual(
+            consultation.answer_metadata_json["jurisprudence_sync"]["error"],
+            "sjf unavailable",
+        )
+
     @patch("apps.consultations.services.workflow.generate_consultation_answer")
     def test_process_consultation_marks_failed_when_unexpected_error_happens(self, mocked_generate):
         mocked_generate.side_effect = RuntimeError("provider down")
