@@ -12,6 +12,7 @@ from .services.ingestion import _split_document, parse_document_into_fragments
 from .services.jurisprudence_sync import (
     _parse_detail,
     _parse_search_results,
+    _post_soap_request,
     search_jurisprudence_with_fallbacks,
     sync_jurisprudence_by_queries,
     sync_jurisprudence_for_prompt,
@@ -205,6 +206,19 @@ class JurisprudenceSyncTests(TestCase):
   </soap:Body>
 </soap:Envelope>"""
 
+    class _FakeResponse:
+        def __init__(self, payload: bytes):
+            self.payload = payload
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return self.payload
+
     def test_parse_search_results_reads_real_sjf_payload(self):
         results = _parse_search_results(self.SEARCH_XML)
 
@@ -319,6 +333,32 @@ class JurisprudenceSyncTests(TestCase):
         self.assertEqual(len(results), 1)
         self.assertNotEqual(matched_expression, "despido embarazo trabajadora")
         self.assertEqual(mocked_search.call_args_list[1].args[0], "despido embarazo")
+
+    @patch("apps.legal_indexing.services.jurisprudence_sync.urlopen")
+    def test_post_soap_request_retries_with_soap_12_after_http_500(self, mocked_urlopen):
+        mocked_urlopen.side_effect = [
+            HTTPError(
+                url="https://sjf.scjn.gob.mx/SJFSem/Servicios/wsResultados.asmx",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
+            ),
+            self._FakeResponse(self.SEARCH_XML),
+        ]
+
+        xml_bytes = _post_soap_request(
+            "https://sjf.scjn.gob.mx/SJFSem/Servicios/wsResultados.asmx",
+            "http://sjf.scjn.gob.mx/ObtenerResultados",
+            "<xml />",
+        )
+
+        self.assertEqual(xml_bytes, self.SEARCH_XML)
+        self.assertEqual(mocked_urlopen.call_count, 2)
+        first_request = mocked_urlopen.call_args_list[0].args[0]
+        second_request = mocked_urlopen.call_args_list[1].args[0]
+        self.assertIn("application/soap+xml", second_request.get_header("Content-type"))
+        self.assertIn("text/xml", first_request.get_header("Content-type"))
 
 
 class RetrievalRankingTests(TestCase):

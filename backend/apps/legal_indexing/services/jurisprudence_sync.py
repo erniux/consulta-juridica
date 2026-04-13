@@ -230,18 +230,54 @@ def _fallback_search_expressions(expression: str) -> list[str]:
 
 
 def _post_soap_request(url: str, action: str, envelope: str) -> bytes:
-    request = Request(
-        url,
-        data=envelope.encode("utf-8"),
-        headers={
-            "Content-Type": "text/xml; charset=utf-8",
-            "SOAPAction": action,
-            "User-Agent": "consulta-juridica-bot/1.0 (+https://github.com/)",
+    attempts = [
+        {
+            "label": "SOAP 1.1",
+            "headers": {
+                "Content-Type": "text/xml; charset=utf-8",
+                "SOAPAction": action,
+                "Accept": "text/xml, application/soap+xml, */*;q=0.8",
+                "Referer": SEARCH_PAGE_URL,
+                "User-Agent": "Mozilla/5.0 (compatible; consulta-juridica-bot/1.0; +https://github.com/)",
+            },
         },
-        method="POST",
-    )
-    with urlopen(request, timeout=60) as response:
-        return response.read()
+        {
+            "label": "SOAP 1.2",
+            "headers": {
+                "Content-Type": f'application/soap+xml; charset=utf-8; action="{action}"',
+                "Accept": "application/soap+xml, text/xml, */*;q=0.8",
+                "Referer": SEARCH_PAGE_URL,
+                "User-Agent": "Mozilla/5.0 (compatible; consulta-juridica-bot/1.0; +https://github.com/)",
+            },
+        },
+    ]
+
+    last_exception = None
+    body = envelope.encode("utf-8")
+    for attempt in attempts:
+        request = Request(
+            url,
+            data=body,
+            headers=attempt["headers"],
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=60) as response:
+                return response.read()
+        except HTTPError as exc:
+            last_exception = exc
+            if exc.code != 500:
+                raise
+            logger.warning(
+                "SOAP request failed with %s against %s: %s",
+                attempt["label"],
+                url,
+                exc,
+            )
+
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("SOAP request could not be executed.")
 
 
 def _parse_search_results(xml_bytes: bytes) -> list[JurisprudenceSearchResult]:
