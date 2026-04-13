@@ -10,8 +10,10 @@ from apps.legal_sources.models import Source
 
 from .services.ingestion import _split_document, parse_document_into_fragments
 from .services.jurisprudence_sync import (
+    get_jurisprudence_pack_queries,
     _parse_detail,
     _parse_search_results,
+    list_jurisprudence_packs,
     search_jurisprudence_with_fallbacks,
     sync_jurisprudence_by_queries,
     sync_jurisprudence_for_prompt,
@@ -224,6 +226,21 @@ class JurisprudenceSyncTests(TestCase):
         self.assertEqual(detail.ius, "2020317")
         self.assertEqual(detail.fecha_publicacion, date(2019, 7, 12))
         self.assertIn("renuncia por si sola", detail.texto)
+
+    def test_jurisprudence_packs_expose_operational_query_groups(self):
+        packs = list_jurisprudence_packs()
+
+        self.assertIn("labor_pregnancy", packs)
+        self.assertIn("riesgo_trabajo", packs)
+        self.assertIn("honorarios_subordinacion", packs)
+
+        queries = get_jurisprudence_pack_queries(["labor_pregnancy", "riesgo_trabajo"])
+        self.assertTrue(any("despido embarazo" in query for query in queries))
+        self.assertTrue(any("riesgo de trabajo" in query for query in queries))
+
+    def test_get_jurisprudence_pack_queries_rejects_unknown_pack(self):
+        with self.assertRaisesMessage(ValueError, "Unsupported jurisprudence packs"):
+            get_jurisprudence_pack_queries(["no_existe"])
 
     @patch("apps.legal_indexing.services.jurisprudence_sync.get_jurisprudence_detail")
     @patch("apps.legal_indexing.services.jurisprudence_sync.search_jurisprudence")

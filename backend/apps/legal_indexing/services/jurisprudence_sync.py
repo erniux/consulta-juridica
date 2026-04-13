@@ -47,6 +47,69 @@ SPANISH_MONTHS = {
     "diciembre": 12,
 }
 
+JURISPRUDENCE_QUERY_PACKS = {
+    "labor_pregnancy": {
+        "description": "Despido por embarazo, maternidad, lactancia y estabilidad laboral reforzada.",
+        "queries": [
+            "despido embarazo",
+            "despido trabajadora embarazada",
+            "maternidad estabilidad laboral reforzada",
+            "lactancia despido trabajadora",
+            "renuncia embarazo trabajadora",
+        ],
+    },
+    "honorarios_subordinacion": {
+        "description": "Simulacion por honorarios, subordinacion y reconocimiento de relacion laboral.",
+        "queries": [
+            "honorarios subordinacion",
+            "contrato por honorarios relacion laboral",
+            "prestacion de servicios subordinacion trabajador",
+            "asimilados honorarios despido",
+            "jefe horario honorarios relacion laboral",
+        ],
+    },
+    "riesgo_trabajo": {
+        "description": "Accidente de trabajo, amputacion, incapacidad e indemnizacion.",
+        "queries": [
+            "riesgo de trabajo indemnizacion",
+            "accidente de trabajo amputacion dedos mano",
+            "incapacidad permanente parcial riesgo de trabajo",
+            "obligaciones patronales accidente de trabajo",
+            "imss pension riesgo de trabajo",
+        ],
+    },
+    "dano_psicologico": {
+        "description": "Danio emocional, psicologico, estres laboral, hostigamiento y acoso.",
+        "queries": [
+            "dano psicologico despido laboral",
+            "estres laboral hostigamiento acoso",
+            "dano moral trabajador despido",
+            "mobbing laboral afectacion psicologica",
+            "ansiedad depresion trabajo despido",
+        ],
+    },
+    "renuncia_forzada": {
+        "description": "Renuncias firmadas bajo presion, coaccion y valor probatorio.",
+        "queries": [
+            "renuncia forzada presion patronal",
+            "renuncia firmada bajo coaccion",
+            "valor probatorio renuncia trabajador",
+            "huella firma renuncia laboral",
+            "despido encubierto renuncia obligada",
+        ],
+    },
+    "seguridad_social": {
+        "description": "Prestaciones IMSS, seguridad social y continuidad de derechos.",
+        "queries": [
+            "seguridad social trabajador imss prestaciones",
+            "prestaciones seguridad social despido",
+            "imss continuidad derechos trabajador",
+            "atencion medica patron embarazo",
+            "buzon imss obligaciones patronales",
+        ],
+    },
+}
+
 
 @dataclass(frozen=True)
 class JurisprudenceSearchResult:
@@ -81,6 +144,31 @@ class JurisprudenceDetail:
 
 def _normalize_whitespace(value: str | None) -> str:
     return " ".join((value or "").split())
+
+
+def list_jurisprudence_packs() -> dict[str, dict]:
+    return JURISPRUDENCE_QUERY_PACKS
+
+
+def get_jurisprudence_pack_queries(pack_names: Iterable[str]) -> list[str]:
+    queries = []
+    invalid = []
+
+    for pack_name in pack_names:
+        pack_key = (pack_name or "").strip()
+        pack = JURISPRUDENCE_QUERY_PACKS.get(pack_key)
+        if not pack:
+            invalid.append(pack_key)
+            continue
+        queries.extend(pack["queries"])
+
+    if invalid:
+        available = ", ".join(sorted(JURISPRUDENCE_QUERY_PACKS))
+        raise ValueError(
+            f"Unsupported jurisprudence packs: {', '.join(invalid)}. Available packs: {available}."
+        )
+
+    return list(dict.fromkeys(query for query in queries if query))
 
 
 def _parse_publication_date(payload: dict) -> date | None:

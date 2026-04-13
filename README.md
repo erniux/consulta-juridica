@@ -160,6 +160,7 @@ Comandos:
 cd backend
 python manage.py sync_official_jurisprudence --query "riesgo de trabajo amputacion dedos mano indemnizacion"
 python manage.py sync_official_jurisprudence --prompt "Despidieron a una mujer por estar embarazada" --max-results 8
+python manage.py sync_official_jurisprudence --pack labor_pregnancy --max-results 8
 ```
 
 La ingesta:
@@ -173,6 +174,21 @@ La ingesta:
 Los documentos ingestados quedan marcados con:
 
 - `metadata_json.source_kind = "scjn_repositorio_api"`
+
+Packs predefinidos disponibles:
+
+- `labor_pregnancy`
+- `honorarios_subordinacion`
+- `riesgo_trabajo`
+- `dano_psicologico`
+- `renuncia_forzada`
+- `seguridad_social`
+
+Para listarlos desde CLI:
+
+```bash
+python manage.py sync_official_jurisprudence --list-packs
+```
 
 Tambien puedes dispararlo por API usando el job de ingesta:
 
