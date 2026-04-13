@@ -79,6 +79,7 @@ Variables backend relevantes:
 - `AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION`
 - `AUTO_SYNC_JURISPRUDENCE_MAX_RESULTS`
 - `AUTO_RUN_MIGRATIONS`
+- `AUTO_RUN_COLLECTSTATIC`
 - `BOOTSTRAP_LEGAL_DATA`
 
 Variables frontend relevantes:
@@ -309,6 +310,7 @@ sh ./scripts/start-gunicorn.sh
 - `ASYNC_CONSULTATIONS=false` si no desplegaste worker
 - `ASYNC_ADMIN_JOBS=false` si no desplegaste worker
 - `AUTO_RUN_MIGRATIONS=true` para correr migraciones al arrancar el contenedor
+- `AUTO_RUN_COLLECTSTATIC=true` para servir correctamente los estaticos del admin
 - `BOOTSTRAP_LEGAL_DATA=true` solo si quieres sembrar datos demo al arrancar
 
 ### Paso obligatorio despues del primer deploy
@@ -447,3 +449,311 @@ python manage.py seed_demo_data
 12. revisar logs de Render si algo no cuadra:
 - logs del servicio web
 - logs del worker, si existe
+
+
+#  Deploy operativo de Consulta Jurídica
+
+## Arquitectura actual
+
+- **Frontend:** Render
+- **Backend API (Django/DRF):** Northflank
+- **Worker (Celery):** Northflank
+- **Redis:** Northflank
+- **PostgreSQL:** Neon
+
+---
+
+## URLs importantes
+
+### Backend Northflank
+- Base URL:
+  - `https://http--consulta-juridica--g9k22bk2hqyc.code.run`
+- Healthcheck:
+  - `https://http--consulta-juridica--g9k22bk2hqyc.code.run/api/health/`
+
+### Frontend Render
+- La variable del frontend debe apuntar al backend de Northflank:
+
+```env
+VITE_API_BASE_URL=https://http--consulta-juridica--g9k22bk2hqyc.code.run/api
+```
+
+---
+
+## Servicios en Northflank
+
+### 1. Backend
+- **Service name:** `consulta-juridica`
+- Función:
+  - expone la API Django/DRF
+  - recibe requests del frontend
+  - envía tareas a Celery cuando aplica
+
+### 2. Worker
+- **Service name:** `consulta-juridica-worker`
+- Función:
+  - procesa tareas asíncronas de Celery
+
+### 3. Job de migraciones
+- **Job name:** `consulta-juridica-job`
+- CMD:
+
+```bash
+python manage.py migrate
+```
+
+### 4. Job de carga inicial de leyes reales
+- **Job recomendado:** `consulta-juridica-sync-legal-docs`
+- CMD:
+
+```bash
+python manage.py sync_official_legal_documents --sources lft lss
+```
+
+### 5. Job de carga inicial de jurisprudencia real
+- **Job recomendado:** `consulta-juridica-sync-jurisprudence`
+- CMD de ejemplo:
+
+```bash
+python manage.py sync_official_jurisprudence --prompt "despido embarazo trabajadora" --max-results 5
+```
+
+### 6. Redis
+- **Addon name:** `consulta-juridica-redis`
+- Función:
+  - broker de Celery
+  - result backend de Celery
+
+---
+
+## Variables importantes
+
+### Frontend (Render)
+
+```env
+VITE_API_BASE_URL=https://http--consulta-juridica--g9k22bk2hqyc.code.run/api
+```
+
+### Backend / Worker (Northflank secret group)
+
+Variables importantes del grupo `consulta-juridica-runtime`:
+
+```env
+DATABASE_URL=...
+SECRET_KEY=...
+REDIS_URL=...
+CELERY_BROKER_URL=...
+CELERY_RESULT_BACKEND=...
+ASYNC_CONSULTATIONS=true
+ASYNC_ADMIN_JOBS=true
+AUTO_SYNC_JURISPRUDENCE_ON_CONSULTATION=true
+AUTO_SYNC_JURISPRUDENCE_MAX_RESULTS=5
+AUTO_RUN_COLLECTSTATIC=true
+BOOTSTRAP_LEGAL_DATA=false
+```
+
+### CORS / hosts
+
+Ejemplo útil:
+
+```env
+ALLOWED_HOSTS=*
+CORS_ALLOWED_ORIGINS=https://consulta-juridica-frontend.onrender.com
+CSRF_TRUSTED_ORIGINS=https://consulta-juridica-frontend.onrender.com,https://http--consulta-juridica--g9k22bk2hqyc.code.run
+```
+
+---
+
+## CMDs configurados
+
+### Backend
+Usa el CMD por defecto del Dockerfile:
+
+```bash
+sh ./scripts/start-gunicorn.sh
+```
+
+### Worker
+CMD override:
+
+```bash
+celery -A config worker --loglevel=info
+```
+
+### Job de migraciones
+CMD override:
+
+```bash
+python manage.py migrate
+```
+
+### Job de carga legal inicial
+CMD override:
+
+```bash
+python manage.py sync_official_legal_documents --sources lft lss
+```
+
+### Job de carga jurisprudencial inicial
+CMD override de ejemplo:
+
+```bash
+python manage.py sync_official_jurisprudence --prompt "despido embarazo trabajadora" --max-results 5
+```
+
+---
+
+## Docker
+
+### Build config usada en Northflank
+
+```text
+Build context: /
+Dockerfile location: /backend/Dockerfile
+```
+
+---
+
+## Flujo rápido cuando cambias Secrets
+
+Si cambias una variable en Northflank:
+
+1. Ir a **Secrets**
+2. Editar `consulta-juridica-runtime`
+3. Guardar
+4. Ir a **Services > consulta-juridica > Builds**
+5. Dar **Rebuild**
+6. Ir a **Services > consulta-juridica-worker > Builds**
+7. Dar **Rebuild**
+8. Esperar a que ambos estén en **Running**
+
+---
+
+## Cómo ver logs
+
+### Backend
+Ruta:
+
+- `Services > consulta-juridica > View latest runtime logs`
+- o `Deployments / Builds` y abrir logs del deployment actual
+
+Buscar aquí:
+- requests HTTP
+- errores de API
+- errores de login
+- errores de CORS / auth
+
+### Worker
+Ruta:
+
+- `Services > consulta-juridica-worker > View latest runtime logs`
+
+Buscar aquí:
+- arranque de Celery
+- conexión a Redis
+- tareas procesadas
+- errores de tareas asíncronas
+
+### Job de migraciones
+Ruta:
+
+- `Jobs > consulta-juridica-job > Runs > abrir run > Logs`
+
+---
+
+## Cómo hacer rebuild
+
+### Backend
+Ruta:
+
+- `Services > consulta-juridica > Builds > Rebuild`
+
+### Worker
+Ruta:
+
+- `Services > consulta-juridica-worker > Builds > Rebuild`
+
+### Cuándo usar Rebuild
+Úsalo cuando:
+- cambiaste código
+- cambiaste secrets y quieres asegurarte de que todo se reconstruya bien
+- necesitas refrescar el contenedor completo
+
+### Cuándo usar Deploy
+Úsalo cuando quieres desplegar una build vieja ya existente.
+
+---
+
+## Cómo ejecutar migraciones manualmente
+
+1. Ir a `Jobs > consulta-juridica-job`
+2. Correr el job manualmente con el botón **Run**
+3. Revisar:
+   - `Runs > abrir run > Logs`
+
+Salida esperada:
+
+```text
+No migrations to apply.
+Process terminated with exit code 0
+```
+
+---
+
+## Checklist rápida de operación
+
+### Si el frontend no pega al backend correcto
+1. Revisar en Render:
+
+```env
+VITE_API_BASE_URL=https://http--consulta-juridica--g9k22bk2hqyc.code.run/api
+```
+
+2. Redeploy frontend
+3. Revisar en DevTools > Network que ya no apunte a `onrender.com`
+
+### Si el worker no procesa consultas
+1. Revisar secret:
+
+```env
+ASYNC_CONSULTATIONS=true
+```
+
+2. Rebuild backend
+3. Rebuild worker
+4. Enviar nueva consulta
+5. Revisar logs del worker
+
+### Si hay error de CORS
+1. Revisar:
+
+```env
+CORS_ALLOWED_ORIGINS=https://consulta-juridica-frontend.onrender.com
+```
+
+2. Guardar
+3. Rebuild backend
+
+---
+
+## Estado actual
+
+Infraestructura validada:
+
+- Backend responde healthcheck
+- Worker Celery corriendo
+- Redis conectado
+- Migraciones OK
+- Frontend apuntando a Northflank
+
+---
+
+## Nota práctica
+
+Si algo no refleja cambios, la secuencia más útil es:
+
+1. guardar cambios en secrets
+2. rebuild backend
+3. rebuild worker
+4. probar desde frontend
+5. revisar logs
