@@ -147,7 +147,7 @@ Notas:
 
 ## Ingesta real de jurisprudencia
 
-Ya existe una primera version de ingesta real de jurisprudencia desde servicios oficiales del SJF/SCJN.
+Ya existe una primera version de ingesta real de jurisprudencia desde la API oficial del repositorio SCJN/Bicentenario.
 
 Opciones disponibles:
 
@@ -164,15 +164,15 @@ python manage.py sync_official_jurisprudence --prompt "Despidieron a una mujer p
 
 La ingesta:
 
-- consulta el web service oficial del SJF
+- consulta la API oficial del repositorio SCJN/Bicentenario
 - recupera registros digitales, rubros y claves de tesis
-- obtiene el detalle completo de cada tesis
+- obtiene el detalle completo de cada tesis o usa el payload de busqueda como respaldo
 - guarda la tesis como `LegalDocument`
 - fragmenta e indexa el contenido para que entre al flujo RAG
 
 Los documentos ingestados quedan marcados con:
 
-- `metadata_json.source_kind = "sjf_webservice"`
+- `metadata_json.source_kind = "scjn_repositorio_api"`
 
 Tambien puedes dispararlo por API usando el job de ingesta:
 

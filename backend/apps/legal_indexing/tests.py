@@ -12,7 +12,6 @@ from .services.ingestion import _split_document, parse_document_into_fragments
 from .services.jurisprudence_sync import (
     _parse_detail,
     _parse_search_results,
-    _post_soap_request,
     search_jurisprudence_with_fallbacks,
     sync_jurisprudence_by_queries,
     sync_jurisprudence_for_prompt,
@@ -161,93 +160,91 @@ class OfficialSyncTests(TestCase):
 
 
 class JurisprudenceSyncTests(TestCase):
-    SEARCH_XML = b"""<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-  <soap:Body>
-    <ObtenerResultadosResponse xmlns="http://sjf.scjn.gob.mx/">
-      <ObtenerResultadosResult>
-        <Resultados>
-          <CamposComunesBE>
-            <Id>2029196</Id>
-            <Rubro>INCREMENTO DE LA INDEMNIZACION POR RIESGO DE TRABAJO.</Rubro>
-            <Localizacion>Registro digital 2029196</Localizacion>
-            <TipoTesis>Jurisprudencia</TipoTesis>
-            <Tesis>2a./J. 123/2024</Tesis>
-          </CamposComunesBE>
-        </Resultados>
-      </ObtenerResultadosResult>
-    </ObtenerResultadosResponse>
-  </soap:Body>
-</soap:Envelope>"""
+    SEARCH_PAYLOAD = {
+        "from": 1,
+        "pagina": 1,
+        "size": 10,
+        "total": 2,
+        "totalPaginas": 1,
+        "resultados": [
+            {
+                "idTesis": 2022751,
+                "rubro": "PROVIDENCIAS CAUTELARES SOLICITADAS EN UN JUICIO LABORAL CON MOTIVO DEL EMBARAZO.",
+                "texto": "La trabajadora puede reclamar seguridad social y estabilidad laboral reforzada durante y despues del embarazo.",
+                "precedentes": "Amparo en revision 42/2020.",
+                "epoca": "Decima Epoca",
+                "instancia": "Tribunales Colegiados de Circuito",
+                "organoJuris": "QUINTO TRIBUNAL COLEGIADO EN MATERIA DE TRABAJO DEL TERCER CIRCUITO.",
+                "fuente": "Gaceta del Semanario Judicial de la Federacion",
+                "tesis": "III.5o.T.6 L (10a.)",
+                "tipoTesis": "Aislada",
+                "localizacion": "[TA]; 10a. Epoca; T.C.C.; Gaceta S.J.F.; Libro 83, Febrero de 2021; Tomo III; Pag. 2903",
+                "anio": 2021,
+                "mes": "Febrero",
+                "notaPublica": "Esta tesis se publico el viernes 26 de febrero de 2021 a las 10:28 horas en el Semanario Judicial de la Federacion.",
+                "anexos": "",
+                "huellaDigital": "8c2d6ea1792ebb958e1aae86292e6143237db4a01ae5032eb42636a15deee26a",
+                "materias": ["Comun", "Laboral"],
+            }
+        ],
+        "filtros": [],
+    }
 
-    DETAIL_XML = b"""<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-  <soap:Body>
-    <ObtenerDetalleResponse xmlns="http://tempuri.org/">
-      <ObtenerDetalleResult>
-        <Tesis>
-          <Ius>2029196</Ius>
-          <Tesis>2a./J. 123/2024</Tesis>
-          <Rubro>INCREMENTO DE LA INDEMNIZACION POR RIESGO DE TRABAJO.</Rubro>
-          <TipoTesis>Jurisprudencia</TipoTesis>
-          <Instancia>Segunda Sala</Instancia>
-          <Localizacion>Registro digital: 2029196</Localizacion>
-          <FechaPublicacion>02/08/2024</FechaPublicacion>
-          <Texto>Si un accidente de trabajo produce lesiones permanentes, la persona trabajadora puede reclamar indemnizacion adicional.</Texto>
-          <Precedentes>Accidente de trabajo; incapacidad permanente parcial.</Precedentes>
-          <Fuente>Semanario Judicial de la Federacion.</Fuente>
-          <MateriasTesis>Laboral, Seguridad Social</MateriasTesis>
-          <Referencia>Riesgo de trabajo</Referencia>
-          <Tribunal>Segunda Sala</Tribunal>
-          <RutaPdf>https://www.scjn.gob.mx/sites/default/files/comunicacion_digital/2024-08/tesis_publicacion_semanal_02082024.pdf</RutaPdf>
-        </Tesis>
-      </ObtenerDetalleResult>
-    </ObtenerDetalleResponse>
-  </soap:Body>
-</soap:Envelope>"""
+    DETAIL_PAYLOAD = {
+        "idTesis": 2020317,
+        "rubro": "TRABAJADORA EMBARAZADA. SI EL PATRON SE EXCEPCIONA ADUCIENDO QUE LA ACTORA RENUNCIO, EL SOLO ESCRITO DE RENUNCIA ES INSUFICIENTE.",
+        "texto": "Cuando la trabajadora demuestra embarazo, la renuncia por si sola es insuficiente para probar espontaneidad.",
+        "precedentes": "Contradiccion de tesis 318/2018.",
+        "epoca": "Decima Epoca",
+        "instancia": "Suprema Corte de Justicia de la Nacion",
+        "organoJuris": "Segunda Sala",
+        "fuente": "Gaceta del Semanario Judicial de la Federacion",
+        "tesis": "2a./J. 96/2019 (10a.)",
+        "tipoTesis": "Jurisprudencia",
+        "localizacion": "[J]; 10a. Epoca; 2a. Sala; Gaceta S.J.F.; Libro 68, Julio de 2019; Tomo II; Pag. 998",
+        "anio": 2019,
+        "mes": "Julio",
+        "notaPublica": "Esta tesis se publico el viernes 12 de julio de 2019 a las 10:19 horas en el Semanario Judicial de la Federacion.",
+        "anexos": "",
+        "huellaDigital": "3b8397b9700b243da8fb4af85ce28fcc19fee76202f3deb01a2e119ce46f2def",
+        "materias": ["Laboral"],
+    }
 
-    class _FakeResponse:
-        def __init__(self, payload: bytes):
-            self.payload = payload
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, exc_type, exc, tb):
-            return False
-
-        def read(self):
-            return self.payload
-
-    def test_parse_search_results_reads_real_sjf_payload(self):
-        results = _parse_search_results(self.SEARCH_XML)
+    def test_parse_search_results_reads_real_scjn_payload(self):
+        results = _parse_search_results(self.SEARCH_PAYLOAD)
 
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0].ius, "2029196")
-        self.assertEqual(results[0].tesis_clave, "2a./J. 123/2024")
+        self.assertEqual(results[0].ius, "2022751")
+        self.assertEqual(results[0].tesis_clave, "III.5o.T.6 L (10a.)")
 
-    def test_parse_detail_reads_real_sjf_payload(self):
-        detail = _parse_detail(self.DETAIL_XML)
+    def test_parse_detail_reads_real_scjn_payload(self):
+        detail = _parse_detail(self.DETAIL_PAYLOAD)
 
         self.assertIsNotNone(detail)
-        self.assertEqual(detail.ius, "2029196")
-        self.assertEqual(detail.fecha_publicacion, date(2024, 8, 2))
-        self.assertIn("indemnizacion adicional", detail.texto)
+        self.assertEqual(detail.ius, "2020317")
+        self.assertEqual(detail.fecha_publicacion, date(2019, 7, 12))
+        self.assertIn("renuncia por si sola", detail.texto)
 
-    @patch("apps.legal_indexing.services.jurisprudence_sync._post_soap_request")
-    def test_sync_jurisprudence_by_queries_upserts_real_documents(self, mocked_post):
-        mocked_post.side_effect = [self.SEARCH_XML, self.DETAIL_XML]
+    @patch("apps.legal_indexing.services.jurisprudence_sync.get_jurisprudence_detail")
+    @patch("apps.legal_indexing.services.jurisprudence_sync.search_jurisprudence")
+    def test_sync_jurisprudence_by_queries_upserts_real_documents(
+        self,
+        mocked_search,
+        mocked_detail,
+    ):
+        mocked_search.return_value = _parse_search_results(self.SEARCH_PAYLOAD)
+        mocked_detail.return_value = _parse_detail(self.DETAIL_PAYLOAD)
 
         documents = sync_jurisprudence_by_queries(
-            ["riesgo de trabajo indemnizacion patron"],
+            ["despido embarazo"],
             maximum_rows_per_query=5,
         )
 
         self.assertEqual(len(documents), 1)
         document = documents[0]
-        self.assertEqual(document.digital_registry_number, "2029196")
-        self.assertEqual(document.metadata_json["source_kind"], "sjf_webservice")
-        self.assertEqual(document.metadata_json["search_expression"], "riesgo de trabajo indemnizacion patron")
+        self.assertEqual(document.digital_registry_number, "2020317")
+        self.assertEqual(document.metadata_json["source_kind"], "scjn_repositorio_api")
+        self.assertEqual(document.metadata_json["search_expression"], "despido embarazo")
         self.assertGreater(document.fragments.count(), 0)
 
     @patch("apps.legal_indexing.services.jurisprudence_sync.sync_jurisprudence_by_queries")
@@ -280,11 +277,11 @@ class JurisprudenceSyncTests(TestCase):
                 fp=None,
             ),
             (
-                _parse_search_results(self.SEARCH_XML),
+                _parse_search_results(self.SEARCH_PAYLOAD),
                 "riesgo de trabajo indemnizacion patron",
             ),
         ]
-        mocked_detail.return_value = _parse_detail(self.DETAIL_XML)
+        mocked_detail.return_value = _parse_detail(self.DETAIL_PAYLOAD)
 
         documents = sync_jurisprudence_by_queries(
             [
@@ -295,7 +292,7 @@ class JurisprudenceSyncTests(TestCase):
         )
 
         self.assertEqual(len(documents), 1)
-        self.assertEqual(documents[0].digital_registry_number, "2029196")
+        self.assertEqual(documents[0].digital_registry_number, "2020317")
 
     @patch("apps.legal_indexing.services.jurisprudence_sync.search_jurisprudence")
     def test_search_jurisprudence_with_fallbacks_uses_shorter_candidate_after_http_500(
@@ -333,32 +330,6 @@ class JurisprudenceSyncTests(TestCase):
         self.assertEqual(len(results), 1)
         self.assertNotEqual(matched_expression, "despido embarazo trabajadora")
         self.assertEqual(mocked_search.call_args_list[1].args[0], "despido embarazo")
-
-    @patch("apps.legal_indexing.services.jurisprudence_sync.urlopen")
-    def test_post_soap_request_retries_with_soap_12_after_http_500(self, mocked_urlopen):
-        mocked_urlopen.side_effect = [
-            HTTPError(
-                url="https://sjf.scjn.gob.mx/SJFSem/Servicios/wsResultados.asmx",
-                code=500,
-                msg="Internal Server Error",
-                hdrs=None,
-                fp=None,
-            ),
-            self._FakeResponse(self.SEARCH_XML),
-        ]
-
-        xml_bytes = _post_soap_request(
-            "https://sjf.scjn.gob.mx/SJFSem/Servicios/wsResultados.asmx",
-            "http://sjf.scjn.gob.mx/ObtenerResultados",
-            "<xml />",
-        )
-
-        self.assertEqual(xml_bytes, self.SEARCH_XML)
-        self.assertEqual(mocked_urlopen.call_count, 2)
-        first_request = mocked_urlopen.call_args_list[0].args[0]
-        second_request = mocked_urlopen.call_args_list[1].args[0]
-        self.assertIn("application/soap+xml", second_request.get_header("Content-type"))
-        self.assertIn("text/xml", first_request.get_header("Content-type"))
 
 
 class RetrievalRankingTests(TestCase):
