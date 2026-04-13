@@ -12,6 +12,7 @@ from .services.ingestion import _split_document, parse_document_into_fragments
 from .services.jurisprudence_sync import (
     _parse_detail,
     _parse_search_results,
+    search_jurisprudence_with_fallbacks,
     sync_jurisprudence_by_queries,
     sync_jurisprudence_for_prompt,
 )
@@ -249,9 +250,14 @@ class JurisprudenceSyncTests(TestCase):
         self.assertEqual(kwargs["maximum_rows_per_query"], 7)
         self.assertTrue(any("riesgo de trabajo" in query for query in args[0]))
 
-    @patch("apps.legal_indexing.services.jurisprudence_sync._post_soap_request")
-    def test_sync_jurisprudence_by_queries_skips_failed_sjf_queries(self, mocked_post):
-        mocked_post.side_effect = [
+    @patch("apps.legal_indexing.services.jurisprudence_sync.get_jurisprudence_detail")
+    @patch("apps.legal_indexing.services.jurisprudence_sync.search_jurisprudence_with_fallbacks")
+    def test_sync_jurisprudence_by_queries_skips_failed_sjf_queries(
+        self,
+        mocked_search_with_fallbacks,
+        mocked_detail,
+    ):
+        mocked_search_with_fallbacks.side_effect = [
             HTTPError(
                 url="https://sjf.scjn.gob.mx/SJFSem/Servicios/wsResultados.asmx",
                 code=500,
@@ -259,9 +265,12 @@ class JurisprudenceSyncTests(TestCase):
                 hdrs=None,
                 fp=None,
             ),
-            self.SEARCH_XML,
-            self.DETAIL_XML,
+            (
+                _parse_search_results(self.SEARCH_XML),
+                "riesgo de trabajo indemnizacion patron",
+            ),
         ]
+        mocked_detail.return_value = _parse_detail(self.DETAIL_XML)
 
         documents = sync_jurisprudence_by_queries(
             [
@@ -273,6 +282,43 @@ class JurisprudenceSyncTests(TestCase):
 
         self.assertEqual(len(documents), 1)
         self.assertEqual(documents[0].digital_registry_number, "2029196")
+
+    @patch("apps.legal_indexing.services.jurisprudence_sync.search_jurisprudence")
+    def test_search_jurisprudence_with_fallbacks_uses_shorter_candidate_after_http_500(
+        self,
+        mocked_search,
+    ):
+        mocked_search.side_effect = [
+            HTTPError(
+                url="https://sjf.scjn.gob.mx/SJFSem/Servicios/wsResultados.asmx",
+                code=500,
+                msg="Internal Server Error",
+                hdrs=None,
+                fp=None,
+            ),
+            [
+                type(
+                    "FakeResult",
+                    (),
+                    {
+                        "ius": "2029196",
+                        "rubro": "INCREMENTO DE LA INDEMNIZACION POR RIESGO DE TRABAJO.",
+                        "localizacion": "Registro digital 2029196",
+                        "tipo_tesis": "Jurisprudencia",
+                        "tesis_clave": "2a./J. 123/2024",
+                    },
+                )()
+            ],
+        ]
+
+        results, matched_expression = search_jurisprudence_with_fallbacks(
+            "despido embarazo trabajadora",
+            maximum_rows=5,
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertNotEqual(matched_expression, "despido embarazo trabajadora")
+        self.assertEqual(mocked_search.call_args_list[1].args[0], "despido embarazo")
 
 
 class RetrievalRankingTests(TestCase):

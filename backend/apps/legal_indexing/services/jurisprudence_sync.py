@@ -10,6 +10,8 @@ import xml.etree.ElementTree as ET
 
 from django.utils import timezone
 
+from common.text import normalize_text, tokenize
+
 from apps.legal_documents.models import LegalDocument
 from apps.legal_sources.models import Source
 from apps.llm_orchestrator.services.classifiers import (
@@ -193,6 +195,40 @@ def _build_detail_envelope(ius: str) -> str:
 </soap:Envelope>"""
 
 
+def _fallback_search_expressions(expression: str) -> list[str]:
+    variants = []
+
+    def add_variant(value: str):
+        cleaned = " ".join((value or "").split())
+        if cleaned and cleaned not in variants:
+            variants.append(cleaned)
+
+    add_variant(expression)
+    normalized = normalize_text(expression)
+    add_variant(normalized)
+
+    tokens = tokenize(expression)
+    if not tokens:
+        return variants
+
+    add_variant(" ".join(tokens[:5]))
+    add_variant(" ".join(tokens[:4]))
+    add_variant(" ".join(tokens[:3]))
+    add_variant(" ".join(tokens[:2]))
+
+    if len(tokens) >= 2:
+        add_variant(" ".join(tokens[-2:]))
+    if len(tokens) >= 3:
+        add_variant(" ".join(tokens[:2]))
+        add_variant(" ".join(tokens[1:3]))
+
+    for token in tokens[:4]:
+        if len(token) >= 4:
+            add_variant(token)
+
+    return variants
+
+
 def _post_soap_request(url: str, action: str, envelope: str) -> bytes:
     request = Request(
         url,
@@ -261,6 +297,36 @@ def search_jurisprudence(expression: str, maximum_rows: int = 10) -> list[Jurisp
     envelope = _build_search_envelope(expression, maximum_rows)
     xml_bytes = _post_soap_request(RESULTS_SERVICE_URL, SOAP_RESULTS_ACTION, envelope)
     return _parse_search_results(xml_bytes)
+
+
+def search_jurisprudence_with_fallbacks(
+    expression: str,
+    maximum_rows: int = 10,
+) -> tuple[list[JurisprudenceSearchResult], str]:
+    last_exception = None
+
+    for candidate in _fallback_search_expressions(expression):
+        try:
+            results = search_jurisprudence(candidate, maximum_rows=maximum_rows)
+            if candidate != expression:
+                logger.info(
+                    "Jurisprudence search fallback succeeded for expression '%s' using '%s'",
+                    expression,
+                    candidate,
+                )
+            return results, candidate
+        except (HTTPError, URLError, ET.ParseError) as exc:
+            last_exception = exc
+            logger.warning(
+                "Jurisprudence search skipped for expression '%s' using candidate '%s': %s",
+                expression,
+                candidate,
+                exc,
+            )
+
+    if last_exception is not None:
+        raise last_exception
+    return [], expression
 
 
 def get_jurisprudence_detail(ius: str) -> JurisprudenceDetail | None:
@@ -381,10 +447,13 @@ def sync_jurisprudence_by_queries(
         if not expression:
             continue
         try:
-            search_results = search_jurisprudence(expression, maximum_rows=maximum_rows_per_query)
+            search_results, matched_expression = search_jurisprudence_with_fallbacks(
+                expression,
+                maximum_rows=maximum_rows_per_query,
+            )
         except (HTTPError, URLError, ET.ParseError) as exc:
             logger.warning(
-                "Jurisprudence search skipped for expression '%s': %s",
+                "Jurisprudence search skipped for expression '%s' after all fallbacks: %s",
                 expression,
                 exc,
             )
@@ -409,7 +478,7 @@ def sync_jurisprudence_by_queries(
                 _upsert_jurisprudence_detail(
                     detail,
                     source=source,
-                    search_expression=expression,
+                    search_expression=matched_expression,
                 )
             )
     return synced_documents
